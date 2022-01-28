@@ -33,6 +33,7 @@ parser.add_argument(
         'imagenet64',
     ]
 )
+parser.add_argument('--label_MNIST', type=int, default=None)
 parser.add_argument('--dataroot', type=str, default='data')
 parser.add_argument('--imagesize', type=int, default=32)
 parser.add_argument('--nbits', type=int, default=8)  # Only used for celebahq.
@@ -255,6 +256,19 @@ elif args.data == 'mnist':
     im_dim = 1
     init_layer = layers.LogitTransform(1e-6)
     n_classes = 10
+    dataset = datasets.MNIST(
+                args.dataroot, train=True, transform=transforms.Compose([
+                    transforms.Resize(args.imagesize),
+                    transforms.ToTensor(),
+                    add_noise,
+                ])
+            )
+    
+    if args.label_MNIST is not None:
+        idx = dataset.targets==args.label_MNIST
+        dataset.data = dataset.data[idx]
+        dataset.targets = dataset.targets[idx]
+    
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST(
             args.dataroot, train=True, transform=transforms.Compose([
