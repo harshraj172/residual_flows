@@ -256,7 +256,16 @@ elif args.data == 'mnist':
     im_dim = 1
     init_layer = layers.LogitTransform(1e-6)
     n_classes = 10
-    dataset = datasets.MNIST(
+    
+#     dataset = datasets.MNIST(
+#                 args.dataroot, train=True, transform=transforms.Compose([
+#                     transforms.Resize(args.imagesize),
+#                     transforms.ToTensor(),
+#                     add_noise,
+#                 ])
+#             )
+
+    train_dataset = vdsets.MNIST(
                 args.dataroot, train=True, transform=transforms.Compose([
                     transforms.Resize(args.imagesize),
                     transforms.ToTensor(),
@@ -264,31 +273,33 @@ elif args.data == 'mnist':
                 ])
             )
     
+    test_dataset = vdsets.MNIST(
+                args.dataroot, train=False, transform=transforms.Compose([
+                    transforms.Resize(args.imagesize),
+                    transforms.ToTensor(),
+                    add_noise,
+                ])
+            )
+
     if args.label_MNIST is not None:
-        idx = dataset.targets==args.label_MNIST
-        dataset.data = dataset.data[idx]
-        dataset.targets = dataset.targets[idx]
+        # for train set
+        train_idx = train_dataset.targets==args.label_MNIST
+        train_dataset.data = train_dataset.data[train_idx]
+        train_dataset.targets = train_dataset.targets[train_idx]
     
+        # for test set 
+        test_idx = test_dataset.targets==args.label_MNIST
+        test_dataset.data = test_dataset.data[test_idx]
+        test_dataset.targets = test_dataset.targets[test_idx]
+        
     train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST(
-            args.dataroot, train=True, transform=transforms.Compose([
-                transforms.Resize(args.imagesize),
-                transforms.ToTensor(),
-                add_noise,
-            ])
-        ),
+        train_dataset,
         batch_size=args.batchsize,
         shuffle=True,
         num_workers=args.nworkers,
     )
     test_loader = torch.utils.data.DataLoader(
-        datasets.MNIST(
-            args.dataroot, train=False, transform=transforms.Compose([
-                transforms.Resize(args.imagesize),
-                transforms.ToTensor(),
-                add_noise,
-            ])
-        ),
+        test_dataset,
         batch_size=args.val_batchsize,
         shuffle=False,
         num_workers=args.nworkers,
