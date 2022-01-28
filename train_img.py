@@ -266,7 +266,7 @@ elif args.data == 'mnist':
 #             )
 
     train_dataset = vdsets.MNIST(
-                args.dataroot, train=True, transform=transforms.Compose([
+                args.dataroot, train=True, download=True, transform=transforms.Compose([
                     transforms.Resize(args.imagesize),
                     transforms.ToTensor(),
                     add_noise,
@@ -274,7 +274,7 @@ elif args.data == 'mnist':
             )
     
     test_dataset = vdsets.MNIST(
-                args.dataroot, train=False, transform=transforms.Compose([
+                args.dataroot, train=False, download=True, transform=transforms.Compose([
                     transforms.Resize(args.imagesize),
                     transforms.ToTensor(),
                     add_noise,
