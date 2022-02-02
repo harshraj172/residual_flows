@@ -96,7 +96,7 @@ parser.add_argument('--rcrop-pad-mode', type=str, choices=['constant', 'reflect'
 parser.add_argument('--padding-dist', type=str, choices=['uniform', 'gaussian'], default='uniform')
 
 parser.add_argument('--resume', type=str, default=None) 
-parser.add_argument('--eval_model', type=str, default=None)
+parser.add_argument('--eval_model', type=bool, default=False)
 parser.add_argument('--begin-epoch', type=int, default=0)
 
 parser.add_argument('--nworkers', type=int, default=4)
@@ -796,8 +796,11 @@ def visualize(epoch, model, itr, real_imgs):
         fake_imgs = fake_imgs.view(-1, im_dim, args.imagesize, args.imagesize)
         recon_imgs = recon_imgs.view(-1, im_dim, args.imagesize, args.imagesize)
         imgs = torch.cat([_real_imgs, fake_imgs, recon_imgs], 0)
-
-        filename = os.path.join(args.save, 'imgs', 'e{:03d}_i{:06d}.png'.format(epoch, itr))
+        
+        if args.eval_model:
+            filename = os.path.join(args.save, 'imgs', f'MNISTLabel_{args.TestLabel_MNIST}.png')
+        else:
+            filename = os.path.join(args.save, 'imgs', 'e{:03d}_i{:06d}.png'.format(epoch, itr))
         save_image(imgs.cpu().float(), filename, nrow=16, padding=2)
     model.train()
 
@@ -844,7 +847,7 @@ def pretty_repr(a):
 def main():
     
     if args.eval_model:
-        assert args.resume is not None, 'No model found to evaluate'
+        assert args.resume is None, 'No model found to evaluate'
         for i, (x, y) in enumerate(test_dataloader):
             if i % args.vis_freq == 0:
                 visualize(0, model, i, x)
