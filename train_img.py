@@ -852,9 +852,9 @@ def main():
             if i % args.vis_freq == 0:
                 visualize(0, model, i, x)
         if args.ema_val:
-            test_bpd = validate(epoch, model, ema)
+            test_bpd = validate(0, model, ema)
         else:
-            test_bpd = validate(epoch, model)
+            test_bpd = validate(0, model)
         return test_bpd
         
    
