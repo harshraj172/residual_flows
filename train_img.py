@@ -847,7 +847,7 @@ def pretty_repr(a):
 def main():
     
     if args.eval_model:
-        assert args.resume is None, 'No model found to evaluate'
+        assert args.resume is not None, 'No model found to evaluate'
         for i, (x, y) in enumerate(test_dataloader):
             if i % args.vis_freq == 0:
                 visualize(0, model, i, x)
