@@ -848,7 +848,7 @@ def main():
     
     if args.eval_model:
         assert args.resume is not None, 'No model found to evaluate'
-        for i, (x, y) in enumerate(test_dataloader):
+        for i, (x, y) in enumerate(test_loader):
             if i % args.vis_freq == 0:
                 visualize(0, model, i, x)
         if args.ema_val:
