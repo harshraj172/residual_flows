@@ -33,7 +33,9 @@ parser.add_argument(
         'imagenet64',
     ]
 )
-parser.add_argument('--label_MNIST', type=int, default=None)
+parser.add_argument('--Label_MNIST', type=int, default=None)
+parser.add_argument('--TestLabel_MNIST', type=int, default=None)
+
 parser.add_argument('--dataroot', type=str, default='data')
 parser.add_argument('--imagesize', type=int, default=32)
 parser.add_argument('--nbits', type=int, default=8)  # Only used for celebahq.
@@ -93,7 +95,8 @@ parser.add_argument('--scale-dim', type=eval, choices=[True, False], default=Fal
 parser.add_argument('--rcrop-pad-mode', type=str, choices=['constant', 'reflect'], default='reflect')
 parser.add_argument('--padding-dist', type=str, choices=['uniform', 'gaussian'], default='uniform')
 
-parser.add_argument('--resume', type=str, default=None)
+parser.add_argument('--resume', type=str, default=None) 
+parser.add_argument('--eval_model', type=str, default=None)
 parser.add_argument('--begin-epoch', type=int, default=0)
 
 parser.add_argument('--nworkers', type=int, default=4)
@@ -281,16 +284,21 @@ elif args.data == 'mnist':
                 ])
             )
 
-    if args.label_MNIST is not None:
+    if args.Label_MNIST is not None:
         # for train set
-        train_idx = train_dataset.targets==args.label_MNIST
+        train_idx = train_dataset.targets==args.Label_MNIST
         train_dataset.data = train_dataset.data[train_idx]
         train_dataset.targets = train_dataset.targets[train_idx]
-    
+        
         # for test set 
-        test_idx = test_dataset.targets==args.label_MNIST
-        test_dataset.data = test_dataset.data[test_idx]
-        test_dataset.targets = test_dataset.targets[test_idx]
+        if args.TestLabel_MNIST is not None:
+            test_idx = test_dataset.targets==args.TestLabel_MNIST
+            test_dataset.data = test_dataset.data[test_idx]
+            test_dataset.targets = test_dataset.targets[test_idx]
+        else:
+            test_idx = test_dataset.targets==args.Label_MNIST
+            test_dataset.data = test_dataset.data[test_idx]
+            test_dataset.targets = test_dataset.targets[test_idx]            
         
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
@@ -834,6 +842,19 @@ def pretty_repr(a):
 
 
 def main():
+    
+    if args.eval_model:
+        assert args.resume is not None, 'No model found to evaluate'
+        for i, (x, y) in enumerate(test_dataloader):
+            if i % args.vis_freq == 0:
+                visualize(0, model, i, x)
+        if args.ema_val:
+            test_bpd = validate(epoch, model, ema)
+        else:
+            test_bpd = validate(epoch, model)
+        return test_bpd
+        
+   
     global best_test_bpd
 
     last_checkpoints = []
