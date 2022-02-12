@@ -10,17 +10,25 @@ class ZeroMeanTransform(nn.Module):
     def __init__(self):
         nn.Module.__init__(self)
 
-    def forward(self, x, logpx=None):
+    def forward(self, x, logpx=None, _logdetgrad_=None):
         x = x - .5
         if logpx is None:
             return x
-        return x, logpx
+        else:
+            if _logdetgrad_ is None:
+                return x, logpx
+            else:
+                return x, logpx, _logdetgrad_
 
-    def inverse(self, y, logpy=None):
+    def inverse(self, y, logpy=None, _logdetgrad_=None):
         y = y + .5
         if logpy is None:
             return y
-        return y, logpy
+        else:
+            if _logdetgrad_ is None:
+                return y, logpy
+            else:
+                return y, logpy, _logdetgrad_
 
 
 class Normalize(nn.Module):
@@ -30,23 +38,29 @@ class Normalize(nn.Module):
         self.register_buffer('mean', torch.as_tensor(mean, dtype=torch.float32))
         self.register_buffer('std', torch.as_tensor(std, dtype=torch.float32))
 
-    def forward(self, x, logpx=None):
+    def forward(self, x, logpx=None, _logdetgrad_=None):
         y = x.clone()
         c = len(self.mean)
         y[:, :c].sub_(self.mean[None, :, None, None]).div_(self.std[None, :, None, None])
         if logpx is None:
             return y
         else:
-            return y, logpx - self._logdetgrad(x)
+            if _logdetgrad_ is None:
+                return y, logpx - self._logdetgrad(x)
+            else:
+                return y, logpx - self._logdetgrad(x), self._logdetgrad(x)
 
-    def inverse(self, y, logpy=None):
+    def inverse(self, y, logpy=None, _logdetgrad_=None):
         x = y.clone()
         c = len(self.mean)
         x[:, :c].mul_(self.std[None, :, None, None]).add_(self.mean[None, :, None, None])
         if logpy is None:
             return x
         else:
-            return x, logpy + self._logdetgrad(x)
+            if _logdetgrad_ is None:
+                return x, logpy + self._logdetgrad(x)
+            else:
+                return x, logpy + self._logdetgrad(x), self._logdetgrad(x)
 
     def _logdetgrad(self, x):
         logdetgrad = (
@@ -66,18 +80,26 @@ class LogitTransform(nn.Module):
         nn.Module.__init__(self)
         self.alpha = alpha
 
-    def forward(self, x, logpx=None):
+    def forward(self, x, logpx=None, _logdetgrad_=None):
         s = self.alpha + (1 - 2 * self.alpha) * x
         y = torch.log(s) - torch.log(1 - s)
         if logpx is None:
             return y
-        return y, logpx - self._logdetgrad(x).view(x.size(0), -1).sum(1, keepdim=True)
-
-    def inverse(self, y, logpy=None):
+        else:
+            if _logdetgrad_ is None:
+                return y, logpx - self._logdetgrad(x).view(x.size(0), -1).sum(1, keepdim=True)
+            else:
+                return y, logpx - self._logdetgrad(x).view(x.size(0), -1).sum(1, keepdim=True), self._logdetgrad(x).view(x.size(0), -1).sum(1, keepdim=True)
+                
+    def inverse(self, y, logpy=None, _logdetgrad_=None):
         x = (torch.sigmoid(y) - self.alpha) / (1 - 2 * self.alpha)
         if logpy is None:
             return x
-        return x, logpy + self._logdetgrad(x).view(x.size(0), -1).sum(1, keepdim=True)
+        else:
+            if _logdetgrad_ is None:
+                return x, logpy + self._logdetgrad(x).view(x.size(0), -1).sum(1, keepdim=True)
+            else:
+                return x, logpy + self._logdetgrad(x).view(x.size(0), -1).sum(1, keepdim=True), self._logdetgrad(x).view(x.size(0), -1).sum(1, keepdim=True)
 
     def _logdetgrad(self, x):
         s = self.alpha + (1 - 2 * self.alpha) * x
