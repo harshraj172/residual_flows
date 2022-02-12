@@ -194,6 +194,7 @@ class ResidualFlow(nn.Module):
         if classify: class_outs = []
         for idx in range(len(self.transforms)):
             if logpx is not None:
+                # f(x), logf(x)
                 x, logpx = self.transforms[idx].forward(x, logpx)
             else:
                 x = self.transforms[idx].forward(x)
