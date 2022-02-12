@@ -34,7 +34,7 @@ class CouplingBlock(nn.Module):
         t = f[:, self.d:]
         return s, t
 
-    def forward(self, x, logpx=None):
+    def forward(self, x, logpx=None, _logdetgrad_=None):
         """Forward computation of a simple coupling split on the axis=1.
         """
         x_a = x[:, :self.d] if not self.swap else x[:, self.d:]
@@ -45,9 +45,12 @@ class CouplingBlock(nn.Module):
         if logpx is None:
             return torch.cat(y, dim=1)
         else:
-            return torch.cat(y, dim=1), logpx - logdetgrad.view(x.size(0), -1).sum(1, keepdim=True)
-
-    def inverse(self, y, logpy=None):
+            if _logdetgrad_ is None:
+                return torch.cat(y, dim=1), logpx - logdetgrad.view(x.size(0), -1).sum(1, keepdim=True)
+            else:
+                return torch.cat(y, dim=1), logpx - logdetgrad.view(x.size(0), -1).sum(1, keepdim=True), logdetgrad.view(x.size(0), -1).sum(1, keepdim=True)
+            
+    def inverse(self, y, logpy=None, _logdetgrad_=None):
         """Inverse computation of a simple coupling split on the axis=1.
         """
         y_a = y[:, :self.d] if not self.swap else y[:, self.d:]
@@ -57,7 +60,10 @@ class CouplingBlock(nn.Module):
         if logpy is None:
             return torch.cat(x, dim=1)
         else:
-            return torch.cat(x, dim=1), logpy + logdetgrad
+            if _logdetgrad_ is None:
+                return torch.cat(x, dim=1), logpy + logdetgrad
+            else:
+                return torch.cat(x, dim=1), logpy + logdetgrad, logdetgrad
 
     def _forward_computation(self, x_a, x_b):
         y_a = x_a
@@ -120,7 +126,7 @@ class MaskedCouplingBlock(nn.Module):
         t = f[:, self.d:]
         return s, t
 
-    def forward(self, x, logpx=None):
+    def forward(self, x, logpx=None, _logdetgrad_=None):
         # get mask
         b = mask_utils.get_mask(x, mask_type=self.mask_type)
 
@@ -132,9 +138,12 @@ class MaskedCouplingBlock(nn.Module):
         if logpx is None:
             return y
         else:
-            return y, logpx - self._logdetgrad(s, b)
+            if _logdetgrad_ is None:
+                return y, logpx - self._logdetgrad(s, b)
+            else:
+                return y, logpx - self._logdetgrad(s, b), self._logdetgrad(s, b)
 
-    def inverse(self, y, logpy=None):
+    def inverse(self, y, logpy=None, _logdetgrad_=None):
         # get mask
         b = mask_utils.get_mask(y, mask_type=self.mask_type)
 
@@ -146,7 +155,10 @@ class MaskedCouplingBlock(nn.Module):
         if logpy is None:
             return x
         else:
-            return x, logpy + self._logdetgrad(s, b)
+            if _logdetgrad_ is None:
+                return x, logpy + self._logdetgrad(s, b)
+            else:
+                return x, logpy + self._logdetgrad(s, b), self._logdetgrad(s, b)
 
     def _logdetgrad(self, s, mask):
         return torch.log(s).mul_(1 - mask).view(s.shape[0], -1).sum(1, keepdim=True)
