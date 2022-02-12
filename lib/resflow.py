@@ -464,25 +464,33 @@ class FCWrapper(nn.Module):
         super(FCWrapper, self).__init__()
         self.fc_module = fc_module
 
-    def forward(self, x, logpx=None):
+    def forward(self, x, logpx=None, _logdetgrad_=None):
         shape = x.shape
         x = x.view(x.shape[0], -1)
         if logpx is None:
             y = self.fc_module(x)
             return y.view(*shape)
         else:
-            y, logpy = self.fc_module(x, logpx)
-            return y.view(*shape), logpy
+            if _logdetgrad_ is None:
+                y, logpy = self.fc_module(x, logpx)
+                return y.view(*shape), logpy
+            else:
+                y, logpy, _logdetgrad_ = self.fc_module(x, logpx, _logdetgrad_)
+                return y.view(*shape), logpy, _logdetgrad_               
 
-    def inverse(self, y, logpy=None):
+    def inverse(self, y, logpy=None, _logdetgrad_=None):
         shape = y.shape
         y = y.view(y.shape[0], -1)
         if logpy is None:
             x = self.fc_module.inverse(y)
             return x.view(*shape)
         else:
-            x, logpx = self.fc_module.inverse(y, logpy)
-            return x.view(*shape), logpx
+            if _logdetgrad_ is None:
+                x, logpx = self.fc_module.inverse(y, logpy)
+                return x.view(*shape), logpx
+            else:
+                x, logpx, _logdetgrad_ = self.fc_module.inverse(y, logpy, _logdetgrad_)
+                return x.view(*shape), logpx, _logdetgrad_                
 
 
 class StackedCouplingBlocks(layers.SequentialFlow):
