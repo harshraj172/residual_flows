@@ -26,9 +26,13 @@ class Dataset(object):
 
 class MNIST(object):
 
-    def __init__(self, dataroot, train=True, transform=None):
+    def __init__(self, dataroot, train=True, transform=None, Label=None):
         self.mnist = vdsets.MNIST(dataroot, train=train, download=True, transform=transform)
-
+        if Label is not None:
+            idx = self.mnist.targets==Label
+            self.mnist.data = self.mnist.data[idx]
+            self.mnist.targets = self.mnist.targets[idx]
+        
     def __len__(self):
         return len(self.mnist)
 
