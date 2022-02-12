@@ -19,7 +19,7 @@ class ActNormNd(nn.Module):
     def shape(self):
         raise NotImplementedError
 
-    def forward(self, x, logpx=None):
+    def forward(self, x, logpx=None, logdetgrad=None):
         c = x.size(1)
 
         if not self.initialized:
@@ -44,9 +44,12 @@ class ActNormNd(nn.Module):
         if logpx is None:
             return y
         else:
-            return y, logpx - self._logdetgrad(x)
+            if logdetgrad is None:
+                return y, logpx - self._logdetgrad(x)
+            else:
+                return y, logpx - self._logdetgrad(x), self._logdetgrad(x)
 
-    def inverse(self, y, logpy=None):
+    def inverse(self, y, logpy=None, logdetgrad=None):
         assert self.initialized
         bias = self.bias.view(*self.shape).expand_as(y)
         weight = self.weight.view(*self.shape).expand_as(y)
@@ -56,7 +59,10 @@ class ActNormNd(nn.Module):
         if logpy is None:
             return x
         else:
-            return x, logpy + self._logdetgrad(x)
+            if logdetgrad is None:
+                return x, logpy + self._logdetgrad(x)
+            else:
+                return x, logpy + self._logdetgrad(x), self._logdetgrad(x)
 
     def _logdetgrad(self, x):
         return self.weight.view(*self.shape).expand(*x.size()).contiguous().view(x.size(0), -1).sum(1, keepdim=True)
