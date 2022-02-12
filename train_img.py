@@ -850,11 +850,11 @@ def main():
         assert args.resume is not None, 'No model found to evaluate'
         for i, (x, y) in enumerate(test_loader):
             if i % args.vis_freq == 0:
-                visualize(0, model, i, x)
+                visualize(args.begin_epoch - 1, model, i, x)
         if args.ema_val:
-            test_bpd = validate(0, model, ema)
+            test_bpd = validate(args.begin_epoch - 1, model, ema)
         else:
-            test_bpd = validate(0, model)
+            test_bpd = validate(args.begin_epoch - 1, model)
         return test_bpd
         
    
