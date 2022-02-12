@@ -51,20 +51,26 @@ class iResBlock(nn.Module):
         self.register_buffer('last_firmom', torch.zeros(1))
         self.register_buffer('last_secmom', torch.zeros(1))
 
-    def forward(self, x, logpx=None):
+    def forward(self, x, logpx=None, _logdetgrad=None):
         if logpx is None:
             y = x + self.nnet(x)
             return y
         else:
             g, logdetgrad = self._logdetgrad(x)
-            return x + g, logpx - logdetgrad
+            if _logdetgrad is None:
+                return x + g, logpx - logdetgrad
+            else:
+                return x + g, logpx - logdetgrad, logdetgrad
 
-    def inverse(self, y, logpy=None):
+    def inverse(self, y, logpy=None, _logdetgrad=None):
         x = self._inverse_fixed_point(y)
         if logpy is None:
             return x
         else:
-            return x, logpy + self._logdetgrad(x)[1]
+            if _logdetgrad is None:
+                return x, logpy + self._logdetgrad(x)[1]
+            else:
+                return x, logpy + self._logdetgrad(x)[1], self._logdetgrad(x)[1]
 
     def _inverse_fixed_point(self, y, atol=1e-5, rtol=1e-5):
         x, x_prev = y - self.nnet(y), y
