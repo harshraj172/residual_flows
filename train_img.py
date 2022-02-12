@@ -33,7 +33,7 @@ parser.add_argument(
         'imagenet64',
     ]
 )
-parser.add_argument('--Label_MNIST', type=int, default=None)
+parser.add_argument('--TrainLabel_MNIST', type=int, default=None)
 parser.add_argument('--TestLabel_MNIST', type=int, default=None)
 
 parser.add_argument('--dataroot', type=str, default='data')
@@ -268,37 +268,39 @@ elif args.data == 'mnist':
 #                 ])
 #             )
 
-    train_dataset = vdsets.MNIST(
+    train_dataset = datasets.MNIST(
                 args.dataroot, train=True, download=True, transform=transforms.Compose([
                     transforms.Resize(args.imagesize),
                     transforms.ToTensor(),
                     add_noise,
-                ])
+                ]),
+                args.TrainLabel_MNIST
             )
     
-    test_dataset = vdsets.MNIST(
+    test_dataset = datasets.MNIST(
                 args.dataroot, train=False, download=True, transform=transforms.Compose([
                     transforms.Resize(args.imagesize),
                     transforms.ToTensor(),
                     add_noise,
-                ])
+                ]),
+                args.TestLabel_MNIST if args.TestLabel_MNIST is not None else args.TrainLabel_MNIST  
             )
 
-    if args.Label_MNIST is not None:
-        # for train set
-        train_idx = train_dataset.targets==args.Label_MNIST
-        train_dataset.data = train_dataset.data[train_idx]
-        train_dataset.targets = train_dataset.targets[train_idx]
+#     if args.TrainLabel_MNIST is not None:
+#         # for train set
+#         train_idx = train_dataset.targets==args.TrainLabel_MNIST
+#         train_dataset.data = train_dataset.data[train_idx]
+#         train_dataset.targets = train_dataset.targets[train_idx]
         
-        # for test set 
-        if args.TestLabel_MNIST is not None:
-            test_idx = test_dataset.targets==args.TestLabel_MNIST
-            test_dataset.data = test_dataset.data[test_idx]
-            test_dataset.targets = test_dataset.targets[test_idx]
-        else:
-            test_idx = test_dataset.targets==args.Label_MNIST
-            test_dataset.data = test_dataset.data[test_idx]
-            test_dataset.targets = test_dataset.targets[test_idx]            
+#         # for test set 
+#         if args.TestLabel_MNIST is not None:
+#             test_idx = test_dataset.targets==args.TestLabel_MNIST
+#             test_dataset.data = test_dataset.data[test_idx]
+#             test_dataset.targets = test_dataset.targets[test_idx]
+#         else:
+#             test_idx = test_dataset.targets==args.TrainLabel_MNIST
+#             test_dataset.data = test_dataset.data[test_idx]
+#             test_dataset.targets = test_dataset.targets[test_idx]            
         
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
