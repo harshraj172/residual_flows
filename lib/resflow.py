@@ -196,7 +196,7 @@ class ResidualFlow(nn.Module):
         for idx in range(len(self.transforms)):
             if logpx is not None:
                 if _logdetgrad_ is None:
-                    x, logpx = self.transforms[idx].forward(x, logpx) # f(x), logf(x)
+                    x, logpx = self.transforms[idx].forward(x, logpx) 
                 else:
                     x, logpx, _logdetgrad_ = self.transforms[idx].forward(x, logpx, _logdetgrad_)
                     _logdetgrad_list.extend(_logdetgrad_)
