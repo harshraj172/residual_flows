@@ -35,7 +35,7 @@ class SequentialFlow(nn.Module):
                     y, logpy = self.chain[i].inverse(y, logpy)
                 return y, logpy
             else:
-                 for i in range(len(self.chain) - 1, -1, -1):
+                for i in range(len(self.chain) - 1, -1, -1):
                     y, logpy, _logdetgrad_ = self.chain[i].inverse(y, logpy, _logdetgrad_)
                 return y, logpy, _logdetgrad_               
 
