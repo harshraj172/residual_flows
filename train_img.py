@@ -552,12 +552,16 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
     elif args.task == 'classification':
         z, logits_tensor = model(x.view(-1, *input_size[1:]), classify=True)
     
-    logpxs = []
+    BPDs = []
     if do_hierarch:
-        logpx = 0 
+        logdetgrad_sum = 0 
         for _logdetgrad_ in _logdetgrad_list:
-            logpx += _logdetgrad_ 
-            logpxs.append(logpx)
+            logdetgrad_sum += -_logdetgrad_
+            logpx = logpz - beta * logdetgrad_sum - np.log(nvals) * (
+                args.imagesize * args.imagesize * (im_dim + args.padding)
+            ) - logpu
+            bits_per_dim = -torch.mean(logpx) / (args.imagesize * args.imagesize * im_dim) / np.log(2)
+            BPDs.append(bits_per_dim)
         
     if args.task in ['density', 'hybrid']:
         # log p(z)
@@ -572,7 +576,7 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
         logpz = torch.mean(logpz).detach()
         delta_logp = torch.mean(-delta_logp).detach()
     
-    return bits_per_dim, logits_tensor, logpz, delta_logp, logpxs
+    return bits_per_dim, logits_tensor, logpz, delta_logp, BPDs
 
 
 def estimator_moments(model, baseline=0):
@@ -632,7 +636,7 @@ def train(epoch, model):
         x = x.to(device)
 
         beta = beta = min(1, global_itr / args.annealing_iters) if args.annealing_iters > 0 else 1.
-        bpd, logits, logpz, neg_delta_logp, logpxs = compute_loss(x, model, do_hierarch=args.do_hierarch, beta=beta)
+        bpd, logits, logpz, neg_delta_logp, BPDs = compute_loss(x, model, do_hierarch=args.do_hierarch, beta=beta)
 
         if args.task in ['density', 'hybrid']:
             firmom, secmom = estimator_moments(model)
@@ -738,7 +742,7 @@ def validate(epoch, model, ema=None):
     with torch.no_grad():
         for i, (x, y) in enumerate(tqdm(test_loader)):
             x = x.to(device)
-            bpd, logits, _, _, logpxs = compute_loss(x, model, do_hierarch=args.do_hierarch)
+            bpd, logits, _, _, BPDs = compute_loss(x, model, do_hierarch=args.do_hierarch)
             bpd_meter.update(bpd.item(), x.size(0))
 
             if args.task in ['classification', 'hybrid']:
@@ -756,7 +760,7 @@ def validate(epoch, model, ema=None):
     if args.task in ['classification', 'hybrid']:
         s += ' | CE {:.4f} | Acc {:.2f}'.format(ce_meter.avg, 100 * correct / total)
     logger.info(s)
-    return bpd_meter.avg, logpxs
+    return bpd_meter.avg, BPDs
 
 
 def visualize(epoch, model, itr, real_imgs):
@@ -844,10 +848,10 @@ def main():
             if i % args.vis_freq == 0:
                 visualize(args.begin_epoch - 1, model, i, x)
         if args.ema_val:
-            test_bpd, logpxs = validate(args.begin_epoch - 1, model, ema)
+            test_bpd, BPDs = validate(args.begin_epoch - 1, model, ema)
         else:
-            test_bpd, logpxs = validate(args.begin_epoch - 1, model)
-        return test_bpd, logpxs if args.do_hierarch else return test_bpd
+            test_bpd, BPDs = validate(args.begin_epoch - 1, model)
+        return test_bpd, BPDs if args.do_hierarch else test_bpd
         
    
     global best_test_bpd
