@@ -248,7 +248,7 @@ class ResidualFlow(nn.Module):
                     z_prev = self.transforms[idx].inverse(z_prev)
                 return z_prev
             else:
-                is _logdetgrad_ is None:
+                if _logdetgrad_ is None:
                     z_prev, logpz = self.transforms[-1].inverse(zs[-1], logpz)
                     for idx in range(len(self.transforms) - 2, -1, -1):
                         z_prev = torch.cat((z_prev, zs[idx]), dim=1)
