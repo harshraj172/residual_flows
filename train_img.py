@@ -91,6 +91,7 @@ parser.add_argument('--ema-val', type=eval, choices=[True, False], default=True)
 parser.add_argument('--update-freq', type=int, default=1)
 
 parser.add_argument('--task', type=str, choices=['density', 'classification', 'hybrid'], default='density')
+parser.add_argument('--do_hierarch', type=eval, choices=[True, False], default=False)
 parser.add_argument('--scale-dim', type=eval, choices=[True, False], default=False)
 parser.add_argument('--rcrop-pad-mode', type=str, choices=['constant', 'reflect'], default='reflect')
 parser.add_argument('--padding-dist', type=str, choices=['uniform', 'gaussian'], default='uniform')
@@ -521,7 +522,7 @@ fixed_z = standard_normal_sample([min(32, args.batchsize),
 criterion = torch.nn.CrossEntropyLoss()
 
 
-def compute_loss(x, model, beta=1.0):
+def compute_loss(x, model, do_hierarch, beta=1.0): 
     bits_per_dim, logits_tensor = torch.zeros(1).to(x), torch.zeros(n_classes).to(x)
     logpz, delta_logp = torch.zeros(1).to(x), torch.zeros(1).to(x)
 
@@ -536,15 +537,28 @@ def compute_loss(x, model, beta=1.0):
 
     if args.squeeze_first:
         x = squeeze_layer(x)
-
+    
     if args.task == 'hybrid':
-        z_logp, logits_tensor = model(x.view(-1, *input_size[1:]), 0, classify=True)
+        if do_hierarch:
+            z_logp, _logdetgrad_list, logits_tensor = model(x.view(-1, *input_size[1:]), logpx=0, _logdetgrad_=0, classify=True)
+        else:
+            z_logp, logits_tensor = model(x.view(-1, *input_size[1:]), 0, classify=True)
         z, delta_logp = z_logp
     elif args.task == 'density':
-        z, delta_logp = model(x.view(-1, *input_size[1:]), 0)
+        if do_hierarch:
+            z, delta_logp, _logdetgrad_list = model(x.view(-1, *input_size[1:]), logpx=0, _logdetgrad_=0)
+        else:
+            z, delta_logp = model(x.view(-1, *input_size[1:]), 0)
     elif args.task == 'classification':
         z, logits_tensor = model(x.view(-1, *input_size[1:]), classify=True)
-
+    
+    logpxs = []
+    if do_hierarch:
+        logpx = 0 
+        for _logdetgrad_ in _logdetgrad_list:
+            logpx += _logdetgrad_ 
+            logpxs.append(logpx)
+        
     if args.task in ['density', 'hybrid']:
         # log p(z)
         logpz = standard_normal_logprob(z).view(z.size(0), -1).sum(1, keepdim=True)
@@ -557,8 +571,8 @@ def compute_loss(x, model, beta=1.0):
 
         logpz = torch.mean(logpz).detach()
         delta_logp = torch.mean(-delta_logp).detach()
-
-    return bits_per_dim, logits_tensor, logpz, delta_logp
+    
+    return bits_per_dim, logits_tensor, logpz, delta_logp, logpxs
 
 
 def estimator_moments(model, baseline=0):
@@ -618,7 +632,7 @@ def train(epoch, model):
         x = x.to(device)
 
         beta = beta = min(1, global_itr / args.annealing_iters) if args.annealing_iters > 0 else 1.
-        bpd, logits, logpz, neg_delta_logp = compute_loss(x, model, beta=beta)
+        bpd, logits, logpz, neg_delta_logp, logpxs = compute_loss(x, model, do_hierarch=args.do_hierarch, beta=beta)
 
         if args.task in ['density', 'hybrid']:
             firmom, secmom = estimator_moments(model)
@@ -724,7 +738,7 @@ def validate(epoch, model, ema=None):
     with torch.no_grad():
         for i, (x, y) in enumerate(tqdm(test_loader)):
             x = x.to(device)
-            bpd, logits, _, _ = compute_loss(x, model)
+            bpd, logits, _, _, logpxs = compute_loss(x, model, do_hierarch=args.do_hierarch)
             bpd_meter.update(bpd.item(), x.size(0))
 
             if args.task in ['classification', 'hybrid']:
@@ -742,7 +756,7 @@ def validate(epoch, model, ema=None):
     if args.task in ['classification', 'hybrid']:
         s += ' | CE {:.4f} | Acc {:.2f}'.format(ce_meter.avg, 100 * correct / total)
     logger.info(s)
-    return bpd_meter.avg
+    return bpd_meter.avg, logpxs
 
 
 def visualize(epoch, model, itr, real_imgs):
@@ -830,10 +844,10 @@ def main():
             if i % args.vis_freq == 0:
                 visualize(args.begin_epoch - 1, model, i, x)
         if args.ema_val:
-            test_bpd = validate(args.begin_epoch - 1, model, ema)
+            test_bpd, logpxs = validate(args.begin_epoch - 1, model, ema)
         else:
-            test_bpd = validate(args.begin_epoch - 1, model)
-        return test_bpd
+            test_bpd, logpxs = validate(args.begin_epoch - 1, model)
+        return test_bpd, logpxs if args.do_hierarch else return test_bpd
         
    
     global best_test_bpd
@@ -855,9 +869,9 @@ def main():
         logger.info('Order: {}'.format(pretty_repr(ords[-1])))
 
         if args.ema_val:
-            test_bpd = validate(epoch, model, ema)
+            test_bpd, logpxs = validate(epoch, model, ema)
         else:
-            test_bpd = validate(epoch, model)
+            test_bpd, logpxs = validate(epoch, model)
 
         if args.scheduler and scheduler is not None:
             scheduler.step()
