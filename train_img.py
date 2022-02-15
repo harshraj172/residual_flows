@@ -626,7 +626,7 @@ def train(epoch, model):
 
         global_itr = epoch * len(train_loader) + i
         update_lr(optimizer, global_itr)
-
+        BPDs_list = []
         # Training procedure:
         # for each sample x:
         #   compute z = f(x)
@@ -636,7 +636,9 @@ def train(epoch, model):
 
         beta = beta = min(1, global_itr / args.annealing_iters) if args.annealing_iters > 0 else 1.
         bpd, logits, logpz, neg_delta_logp, BPDs = compute_loss(x, model, do_hierarch=args.do_hierarch, beta=beta)
-
+        
+        BPDs_list.append(BPDs)
+        
         if args.task in ['density', 'hybrid']:
             firmom, secmom = estimator_moments(model)
 
@@ -725,7 +727,8 @@ def validate(epoch, model, ema=None):
     """
     bpd_meter = utils.AverageMeter()
     ce_meter = utils.AverageMeter()
-
+    BPDs_list = []
+    
     if ema is not None:
         ema.swap()
 
@@ -733,6 +736,7 @@ def validate(epoch, model, ema=None):
 
     model = parallelize(model)
     model.eval()
+    
 
     correct = 0
     total = 0
@@ -743,6 +747,7 @@ def validate(epoch, model, ema=None):
             x = x.to(device)
             bpd, logits, _, _, BPDs = compute_loss(x, model, do_hierarch=args.do_hierarch)
             bpd_meter.update(bpd.item(), x.size(0))
+            BPDs_list.append(BPDs)
 
             if args.task in ['classification', 'hybrid']:
                 y = y.to(device)
@@ -759,7 +764,7 @@ def validate(epoch, model, ema=None):
     if args.task in ['classification', 'hybrid']:
         s += ' | CE {:.4f} | Acc {:.2f}'.format(ce_meter.avg, 100 * correct / total)
     logger.info(s)
-    return bpd_meter.avg, BPDs
+    return bpd_meter.avg, BPDs_list
 
 
 def visualize(epoch, model, itr, real_imgs):
