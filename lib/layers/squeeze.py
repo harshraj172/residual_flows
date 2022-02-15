@@ -10,25 +10,19 @@ class SqueezeLayer(nn.Module):
         super(SqueezeLayer, self).__init__()
         self.downscale_factor = downscale_factor
 
-    def forward(self, x, logpx=None, _logdetgrad_=None):
+    def forward(self, x, logpx=None):
         squeeze_x = squeeze(x, self.downscale_factor)
         if logpx is None:
             return squeeze_x
         else:
-            if _logdetgrad_ is None:
-                return squeeze_x, logpx
-            else:
-                return squeeze_x, logpx, _logdetgrad_
+            return squeeze_x, logpx
 
-    def inverse(self, y, logpy=None, _logdetgrad_=None):
+    def inverse(self, y, logpy=None):
         unsqueeze_y = unsqueeze(y, self.downscale_factor)
         if logpy is None:
             return unsqueeze_y
         else:
-            if _logdetgrad_ is None:
-                return unsqueeze_y, logpy
-            else:
-                return unsqueeze_y, logpy, _logdetgrad_
+            return unsqueeze_y, logpy
 
 
 def unsqueeze(input, upscale_factor=2):
