@@ -31,7 +31,7 @@ class MovingBatchNormNd(nn.Module):
         if self.affine:
             self.bias.data.zero_()
 
-    def forward(self, x, logpx=None, _logdetgrad_=None):
+    def forward(self, x, logpx=None):
         c = x.size(1)
         used_mean = self.running_mean.clone().detach()
 
@@ -61,12 +61,9 @@ class MovingBatchNormNd(nn.Module):
         if logpx is None:
             return y
         else:
-            if _logdetgrad_ is None:
-                return y, logpx
-            else:
-                return y, logpx, _logdetgrad_
+            return y, logpx
 
-    def inverse(self, y, logpy=None, _logdetgrad_=None):
+    def inverse(self, y, logpy=None):
         used_mean = self.running_mean
 
         if self.affine:
@@ -79,10 +76,7 @@ class MovingBatchNormNd(nn.Module):
         if logpy is None:
             return x
         else:
-            if _logdetgrad_ is None:
-                return x, logpy
-            else:
-                return x, logpy, _logdetgrad_ 
+            return x, logpy
 
     def __repr__(self):
         return (
