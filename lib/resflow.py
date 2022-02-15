@@ -187,19 +187,16 @@ class ResidualFlow(nn.Module):
         self.classification_heads = nn.ModuleList(classification_heads)
         self.logit_layer = nn.Linear(self.classification_hdim * len(classification_heads), self.n_classes)
 
-    def forward(self, x, logpx=None, _logdetgrad_=None, inverse=False, classify=False):
+    def forward(self, x, logpx=None, inverse=False, classify=False):
         _logdetgrad_list = []
         if inverse:
-            return self.inverse(x, logpx, _logdetgrad_)
+            return self.inverse(x, logpx)
         out = []
         if classify: class_outs = []
         for idx in range(len(self.transforms)):
             if logpx is not None:
-                if _logdetgrad_ is None:
-                    x, logpx = self.transforms[idx].forward(x, logpx) 
-                else:
-                    x, logpx, _logdetgrad_ = self.transforms[idx].forward(x, logpx, _logdetgrad_)
-                    _logdetgrad_list.append(logpx)
+                x, logpx = self.transforms[idx].forward(x, logpx)
+                _logdetgrad_list.append(logpx)
             else:
                 x = self.transforms[idx].forward(x)
             if self.factor_out and (idx < len(self.transforms) - 1):
@@ -216,13 +213,7 @@ class ResidualFlow(nn.Module):
 
         out.append(x)
         out = torch.cat([o.view(o.size()[0], -1) for o in out], 1)
-        if logpx is None:
-            output = out
-        else:
-            if _logdetgrad_ is None:
-                output = (out, logpx)
-            else:
-                output = (out, logpx, _logdetgrad_list)
+        output = out if logpx is None else (out, logpx, _logdetgrad_list)
         if classify:
             h = torch.cat(class_outs, dim=1).squeeze(-1).squeeze(-1)
             logits = self.logit_layer(h)
@@ -230,7 +221,7 @@ class ResidualFlow(nn.Module):
         else:
             return output
 
-    def inverse(self, z, logpz=None, _logdetgrad_=None):
+    def inverse(self, z, logpz=None):
         if self.factor_out:
             z = z.view(z.shape[0], -1)
             zs = []
@@ -248,37 +239,21 @@ class ResidualFlow(nn.Module):
                     z_prev = self.transforms[idx].inverse(z_prev)
                 return z_prev
             else:
-                if _logdetgrad_ is None:
-                    z_prev, logpz = self.transforms[-1].inverse(zs[-1], logpz)
-                    for idx in range(len(self.transforms) - 2, -1, -1):
-                        z_prev = torch.cat((z_prev, zs[idx]), dim=1)
-                        z_prev, logpz = self.transforms[idx].inverse(z_prev, logpz)
-                    return z_prev, logpz
-                else:
-                    z_prev, logpz, _logdetgrad_ = self.transforms[-1].inverse(zs[-1], logpz, _logdetgrad_)
-                    for idx in range(len(self.transforms) - 2, -1, -1):
-                        z_prev = torch.cat((z_prev, zs[idx]), dim=1)
-                        z_prev, logpz, _logdetgrad_ = self.transforms[idx].inverse(z_prev, logpz, _logdetgrad_)
-                        _logdetgrad_list.append(logpz)
-                    return z_prev, logpz, _logdetgrad_list                    
+                z_prev, logpz = self.transforms[-1].inverse(zs[-1], logpz)
+                for idx in range(len(self.transforms) - 2, -1, -1):
+                    z_prev = torch.cat((z_prev, zs[idx]), dim=1)
+                    z_prev, logpz = self.transforms[idx].inverse(z_prev, logpz)
+                    _logdetgrad_list.append(logpz)
+                return z_prev, logpz, _logdetgrad_list
         else:
             z = z.view(z.shape[0], *self.dims[-1])
             for idx in range(len(self.transforms) - 1, -1, -1):
                 if logpz is None:
                     z = self.transforms[idx].inverse(z)
                 else:
-                    if _logdetgrad_ is None:
-                        z, logpz = self.transforms[idx].inverse(z, logpz)
-                    else:
-                        z, logpz, _logdetgrad_ = self.transforms[idx].inverse(z, logpz, _logdetgrad_)
-                        _logdetgrad_list.append(logpz)
-            if logpz is None:
-                return z
-            else:
-                if _logdetgrad_ is None:
-                    return (z, logpz)
-                else:
-                    (z, logpz, _logdetgrad_list)
+                    z, logpz = self.transforms[idx].inverse(z, logpz)
+                    _logdetgrad_list.append(logpz)
+            return z if logpz is None else (z, logpz, _logdetgrad_list)
 
 
 class StackediResBlocks(layers.SequentialFlow):
@@ -492,33 +467,25 @@ class FCWrapper(nn.Module):
         super(FCWrapper, self).__init__()
         self.fc_module = fc_module
 
-    def forward(self, x, logpx=None, _logdetgrad_=None):
+    def forward(self, x, logpx=None):
         shape = x.shape
         x = x.view(x.shape[0], -1)
         if logpx is None:
             y = self.fc_module(x)
             return y.view(*shape)
         else:
-            if _logdetgrad_ is None:
-                y, logpy = self.fc_module(x, logpx)
-                return y.view(*shape), logpy
-            else:
-                y, logpy, _logdetgrad_ = self.fc_module(x, logpx, _logdetgrad_)
-                return y.view(*shape), logpy, _logdetgrad_               
+            y, logpy = self.fc_module(x, logpx)
+            return y.view(*shape), logpy
 
-    def inverse(self, y, logpy=None, _logdetgrad_=None):
+    def inverse(self, y, logpy=None):
         shape = y.shape
         y = y.view(y.shape[0], -1)
         if logpy is None:
             x = self.fc_module.inverse(y)
             return x.view(*shape)
         else:
-            if _logdetgrad_ is None:
-                x, logpx = self.fc_module.inverse(y, logpy)
-                return x.view(*shape), logpx
-            else:
-                x, logpx, _logdetgrad_ = self.fc_module.inverse(y, logpy, _logdetgrad_)
-                return x.view(*shape), logpx, _logdetgrad_                
+            x, logpx = self.fc_module.inverse(y, logpy)
+            return x.view(*shape), logpx
 
 
 class StackedCouplingBlocks(layers.SequentialFlow):
