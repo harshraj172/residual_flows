@@ -565,7 +565,7 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
                 ) - logpu
                 bits_per_dim = -torch.mean(logpx) / (args.imagesize * args.imagesize * im_dim) / np.log(2)
                 BPDs.append(bits_per_dim)
-            
+        print(BPDs)    
         # log p(x)
         logpx = logpz - beta * delta_logp - np.log(nvals) * (
             args.imagesize * args.imagesize * (im_dim + args.padding)
@@ -852,10 +852,10 @@ def main():
             if i % args.vis_freq == 0:
                 visualize(args.begin_epoch - 1, model, i, x)
         if args.ema_val:
-            test_bpd, BPDs = validate(args.begin_epoch - 1, model, ema)
+            test_bpd, BPDs_list = validate(args.begin_epoch - 1, model, ema)
         else:
-            test_bpd, BPDs = validate(args.begin_epoch - 1, model)
-        return test_bpd, BPDs if args.do_hierarch else test_bpd
+            test_bpd, BPDs_list = validate(args.begin_epoch - 1, model)
+        return test_bpd, BPDs_list if args.do_hierarch else test_bpd
         
    
     global best_test_bpd
