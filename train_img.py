@@ -540,33 +540,32 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
     
     if args.task == 'hybrid':
         if do_hierarch:
-            z_logp, _logdetgrad_list, logits_tensor = model(x.view(-1, *input_size[1:]), logpx=0, _logdetgrad_=0, classify=True)
+            z_logp, _logdetgrad_list, logits_tensor = model(x.view(-1, *input_size[1:]), 0, classify=True)
         else:
             z_logp, logits_tensor = model(x.view(-1, *input_size[1:]), 0, classify=True)
         z, delta_logp = z_logp
     elif args.task == 'density':
         if do_hierarch:
-            z, delta_logp, _logdetgrad_list = model(x.view(-1, *input_size[1:]), logpx=0, _logdetgrad_=0)
+            z, delta_logp, _logdetgrad_list = model(x.view(-1, *input_size[1:]), 0)
         else:
             z, delta_logp = model(x.view(-1, *input_size[1:]), 0)
     elif args.task == 'classification':
         z, logits_tensor = model(x.view(-1, *input_size[1:]), classify=True)
     
     BPDs = []
-    if do_hierarch:
-        logdetgrad_sum = 0 
-        for _logdetgrad_ in _logdetgrad_list:
-            logdetgrad_sum += -_logdetgrad_
-            logpx = logpz - beta * logdetgrad_sum - np.log(nvals) * (
-                args.imagesize * args.imagesize * (im_dim + args.padding)
-            ) - logpu
-            bits_per_dim = -torch.mean(logpx) / (args.imagesize * args.imagesize * im_dim) / np.log(2)
-            BPDs.append(bits_per_dim)
-        
     if args.task in ['density', 'hybrid']:
         # log p(z)
         logpz = standard_normal_logprob(z).view(z.size(0), -1).sum(1, keepdim=True)
-
+        
+        if do_hierarch:
+            _logdetgrad_list = [torch.zeros((1, len(_logdetgrad_list[0])))] + _logdetgrad_list
+            for logdetgrad_sum in _logdetgrad_list[:-1]:
+                logpx = logpz - beta * (_logdetgrad_list[-1] - logdetgrad_sum) - np.log(nvals) * (
+                    args.imagesize * args.imagesize * (im_dim + args.padding)
+                ) - logpu
+                bits_per_dim = -torch.mean(logpx) / (args.imagesize * args.imagesize * im_dim) / np.log(2)
+                BPDs.append(bits_per_dim)
+            
         # log p(x)
         logpx = logpz - beta * delta_logp - np.log(nvals) * (
             args.imagesize * args.imagesize * (im_dim + args.padding)
