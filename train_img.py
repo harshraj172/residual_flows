@@ -565,6 +565,7 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
                 ) - logpu
                 bits_per_dim = -torch.mean(logpx) / (args.imagesize * args.imagesize * im_dim) / np.log(2)
                 BPDs.append(bits_per_dim)
+        BPDs = BPDs.reverse()
         print(BPDs)    
         # log p(x)
         logpx = logpz - beta * delta_logp - np.log(nvals) * (
