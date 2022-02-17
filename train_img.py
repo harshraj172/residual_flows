@@ -539,16 +539,10 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
         x = squeeze_layer(x)
     
     if args.task == 'hybrid':
-        if do_hierarch:
-            z_logp, _logdetgrad_list, logits_tensor = model(x.view(-1, *input_size[1:]), 0, classify=True)
-        else:
-            z_logp, logits_tensor = model(x.view(-1, *input_size[1:]), 0, classify=True)
+        z_logp, _logdetgrad_list, logits_tensor = model(x.view(-1, *input_size[1:]), 0, classify=True)
         z, delta_logp = z_logp
     elif args.task == 'density':
-        if do_hierarch:
-            z, delta_logp, _logdetgrad_list = model(x.view(-1, *input_size[1:]), 0)
-        else:
-            z, delta_logp = model(x.view(-1, *input_size[1:]), 0)
+        z, delta_logp, _logdetgrad_list = model(x.view(-1, *input_size[1:]), 0)
     elif args.task == 'classification':
         z, logits_tensor = model(x.view(-1, *input_size[1:]), classify=True)
     
