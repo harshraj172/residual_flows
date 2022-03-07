@@ -33,8 +33,9 @@ parser.add_argument(
         'imagenet32',
         'imagenet64',
     ]
-# )
-parser.add_argument('--TrainLabel', type=int, default=None) ####### modified
+)    
+
+parser.add_argument('--TrainLabel_MNIST', type=int, default=None) ####### modified
 
 parser.add_argument('--dataroot', type=str, default='data')
 parser.add_argument('--imagesize', type=int, default=32)
@@ -100,9 +101,9 @@ parser.add_argument('--resume', type=str, default=None)
 parser.add_argument('--begin-epoch', type=int, default=0)
     
 parser.add_argument('--eval_model', type=bool, default=False) ####### modified
-parser.add_arguments('--eval_data', type=str, choices=['mnist', 'cifar-c'], default=None) ####### modified
-parser.add_arguments('--eval_data_label', type=int, default=None) ####### modified 
-parser.add_arguments('--save_cifarc_tar', type=str, default=None) 
+parser.add_argument('--eval_data', type=str, choices=['mnist', 'cifar-c'], default=None) ####### modified
+parser.add_argument('--eval_data_label', type=int, default=None) ####### modified 
+parser.add_argument('--save_cifarc_tar', type=str, default=None) 
 
 parser.add_argument('--nworkers', type=int, default=4)
 parser.add_argument('--print-freq', help='Print progress every so iterations', type=int, default=20)
@@ -271,7 +272,7 @@ elif args.data == 'mnist':
                     transforms.ToTensor(),
                     add_noise,
                 ]),
-                Label=args.TrainLabel
+                Label=args.TrainLabel_MNIST
             ) ####### modified
     
     test_dataset = datasets.MNIST(
@@ -280,7 +281,7 @@ elif args.data == 'mnist':
                     transforms.ToTensor(),
                     add_noise,
                 ]),
-                Label=args.TrainLabel  
+                Label=args.TrainLabel_MNIST  
             ) ####### modified
         
     train_loader = torch.utils.data.DataLoader(
@@ -452,7 +453,7 @@ if args.data == 'cifar10':
         num_workers=args.nworkers,
     )
     
-if eval_model:
+if args.eval_model:
     import numpy as np
     import urllib.request
     from PIL import Image
@@ -478,7 +479,7 @@ if eval_model:
                 image = self.transform(image)
             return (image, label)
     
-    if eval_data == 'cifar-c':
+    if args.eval_data == 'cifar-c':
         im_dim = 3
         n_classes = 10
         if args.task in ['classification', 'hybrid']:
@@ -500,19 +501,19 @@ if eval_model:
 
         print("Downloading CIFAR-C Dataset")
         urllib.request.urlretrieve("https://zenodo.org/api/files/a35f793a-6997-4603-a92f-926a6bc0fa60/CIFAR-10-C.tar", args.save_cifarc_tar)
-        file = tarfile.open(save_cifarc_tar)
+        file = tarfile.open(args.save_cifarc_tar)
         file.extractall()
         file.close()
     
-        x_data = np.load(f"{save_cifarc_tar.split('.')[0]}/gaussian_blur.npy") 
-        y_data = np.load(f"{save_cifarc_tar.split('.')[0]}/labels.npy")
+        x_data = np.load(f"{args.save_cifarc_tar.split('.')[0]}/gaussian_blur.npy") 
+        y_data = np.load(f"{args.save_cifarc_tar.split('.')[0]}/labels.npy")
 
         test_dataset = CutomDataset(x_data, y_data, transform=transform_test)
         test_loader = torch.utils.data.DataLoader(test_dataset,
                                                       batch_size=args.val_batchsize, 
                                                       shuffle=False, 
                                                       num_workers=args.nworkers)
-    elif eval_data=='mnist':
+    elif args.eval_data=='mnist':
         test_dataset = datasets.MNIST(
                         args.dataroot, train=False, transform=transforms.Compose([
                         transforms.Resize(args.imagesize),
@@ -923,7 +924,7 @@ def visualize(epoch, model, itr, real_imgs):
         imgs = torch.cat([_real_imgs, fake_imgs, recon_imgs], 0)
         
         if args.eval_model:
-            filename = os.path.join(args.save, 'imgs', f'MNISTLabel_{args.TestLabel_MNIST}.png')
+            filename = os.path.join(args.save, 'imgs', f'{args.eval_data}Label_{args.eval_data_label}.png')
         else:
             filename = os.path.join(args.save, 'imgs', 'e{:03d}_i{:06d}.png'.format(epoch, itr))
         save_image(imgs.cpu().float(), filename, nrow=16, padding=2)
