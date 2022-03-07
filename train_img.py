@@ -1,6 +1,7 @@
 import argparse
 import time
 import math
+import urllib.request
 import os
 import os.path
 import numpy as np
@@ -32,9 +33,8 @@ parser.add_argument(
         'imagenet32',
         'imagenet64',
     ]
-)
-parser.add_argument('--TrainLabel_MNIST', type=int, default=None)
-parser.add_argument('--TestLabel_MNIST', type=int, default=None)
+# )
+parser.add_argument('--TrainLabel', type=int, default=None) ####### modified
 
 parser.add_argument('--dataroot', type=str, default='data')
 parser.add_argument('--imagesize', type=int, default=32)
@@ -97,8 +97,12 @@ parser.add_argument('--rcrop-pad-mode', type=str, choices=['constant', 'reflect'
 parser.add_argument('--padding-dist', type=str, choices=['uniform', 'gaussian'], default='uniform')
 
 parser.add_argument('--resume', type=str, default=None) 
-parser.add_argument('--eval_model', type=bool, default=False)
 parser.add_argument('--begin-epoch', type=int, default=0)
+    
+parser.add_argument('--eval_model', type=bool, default=False) ####### modified
+parser.add_arguments('--eval_data', type=str, choices=['mnist', 'cifar-c'], default=None) ####### modified
+parser.add_arguments('--eval_data_label', type=int, default=None) ####### modified 
+parser.add_arguments('--save_cifarc_tar', type=str, default=None) 
 
 parser.add_argument('--nworkers', type=int, default=4)
 parser.add_argument('--print-freq', help='Print progress every so iterations', type=int, default=20)
@@ -262,13 +266,13 @@ elif args.data == 'mnist':
     n_classes = 10
 
     train_dataset = datasets.MNIST(
-                args.dataroot, train=True, transform=transforms.Compose([
+                    args.dataroot, train=True, transform=transforms.Compose([
                     transforms.Resize(args.imagesize),
                     transforms.ToTensor(),
                     add_noise,
                 ]),
-                Label=args.TrainLabel_MNIST
-            )
+                Label=args.TrainLabel
+            ) ####### modified
     
     test_dataset = datasets.MNIST(
                 args.dataroot, train=False, transform=transforms.Compose([
@@ -276,8 +280,8 @@ elif args.data == 'mnist':
                     transforms.ToTensor(),
                     add_noise,
                 ]),
-                Label=args.TestLabel_MNIST if args.TestLabel_MNIST is not None else args.TrainLabel_MNIST  
-            )          
+                Label=args.TrainLabel  
+            ) ####### modified
         
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
@@ -399,6 +403,132 @@ elif args.data == 'imagenet64':
         ])), batch_size=args.val_batchsize, shuffle=False, num_workers=args.nworkers
     )
 
+####### modified
+if args.data == 'cifar10':
+    im_dim = 3
+    n_classes = 10
+    if args.task in ['classification', 'hybrid']:
+
+        # Classification-specific preprocessing.
+        transform_train = transforms.Compose([
+            transforms.Resize(args.imagesize),
+            transforms.RandomCrop(32, padding=4, padding_mode=args.rcrop_pad_mode),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            add_noise,
+        ])
+
+        transform_test = transforms.Compose([
+            transforms.Resize(args.imagesize),
+            transforms.ToTensor(),
+            add_noise,
+        ])
+
+        # Remove the logit transform.
+        init_layer = layers.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    else:
+        transform_train = transforms.Compose([
+            transforms.Resize(args.imagesize),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            add_noise,
+        ])
+        transform_test = transforms.Compose([
+            transforms.Resize(args.imagesize),
+            transforms.ToTensor(),
+            add_noise,
+        ])
+        init_layer = layers.LogitTransform(0.05)
+    train_loader = torch.utils.data.DataLoader(
+        datasets.CIFAR10(args.dataroot, train=True, transform=transform_train),
+        batch_size=args.batchsize,
+        shuffle=True,
+        num_workers=args.nworkers,
+    )
+    test_loader = torch.utils.data.DataLoader(
+        datasets.CIFAR10(args.dataroot, train=False, transform=transform_test),
+        batch_size=args.val_batchsize,
+        shuffle=False,
+        num_workers=args.nworkers,
+    )
+    
+if eval_model:
+    import numpy as np
+    import urllib.request
+    from PIL import Image
+    import tarfile
+
+    import torch, torchvision
+    from torch.utils.data import Dataset
+    from torchvision import transforms
+    
+    class CutomDataset(Dataset):
+        def __init__(self, x_data, y_data, transform=None):
+            self.x_data = x_data
+            self.y_data = y_data
+            self.transform = transform
+
+        def __len__(self):
+            return len(self.y_data)
+
+        def __getitem__(self, index):
+            image = Image.fromarray(np.uint8(self.x_data[index])).convert('RGB')
+            label = self.y_data[index]
+            if self.transform:
+                image = self.transform(image)
+            return (image, label)
+    
+    if eval_data == 'cifar-c':
+        im_dim = 3
+        n_classes = 10
+        if args.task in ['classification', 'hybrid']:
+            # Classification-specific preprocessing.
+            transform_test = transforms.Compose([
+                transforms.Resize(args.imagesize),
+                transforms.ToTensor(),
+                add_noise,
+            ])
+            # Remove the logit transform.
+            init_layer = layers.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        else:
+            transform_test = transforms.Compose([
+                transforms.Resize(args.imagesize),
+                transforms.ToTensor(),
+                add_noise,
+            ])
+            init_layer = layers.LogitTransform(0.05)
+
+        print("Downloading CIFAR-C Dataset")
+        urllib.request.urlretrieve("https://zenodo.org/api/files/a35f793a-6997-4603-a92f-926a6bc0fa60/CIFAR-10-C.tar", args.save_cifarc_tar)
+        file = tarfile.open(save_cifarc_tar)
+        file.extractall()
+        file.close()
+    
+        x_data = np.load(f"{save_cifarc_tar.split('.')[0]}/gaussian_blur.npy") 
+        y_data = np.load(f"{save_cifarc_tar.split('.')[0]}/labels.npy")
+
+        test_dataset = CutomDataset(x_data, y_data, transform=transform_test)
+        test_loader = torch.utils.data.DataLoader(test_dataset,
+                                                      batch_size=args.val_batchsize, 
+                                                      shuffle=False, 
+                                                      num_workers=args.nworkers)
+    elif eval_data=='mnist':
+        test_dataset = datasets.MNIST(
+                        args.dataroot, train=False, transform=transforms.Compose([
+                        transforms.Resize(args.imagesize),
+                        transforms.ToTensor(),
+                        add_noise,
+                    ]),
+                    Label=args.eval_data_label 
+                ) 
+        test_loader = torch.utils.data.DataLoader(
+            test_dataset,
+            batch_size=args.val_batchsize,
+            shuffle=False,
+            num_workers=args.nworkers,
+        )
+####### modified
+    
 if args.task in ['classification', 'hybrid']:
     try:
         n_classes
