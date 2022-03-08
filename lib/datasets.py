@@ -48,10 +48,6 @@ class CIFAR10(object):
 
     def __init__(self, dataroot, train=True, transform=None, Label=None):
         self.cifar10 = vdsets.CIFAR10(dataroot, train=train, download=True, transform=transform)
-        if Label is not None:
-            idx = self.cifar10.targets==Label
-            self.cifar10.data = self.cifar10.data[idx]
-            self.cifar10.targets = self.cifar10.targets[idx]
             
     def __len__(self):
         return len(self.cifar10)
