@@ -36,7 +36,6 @@ parser.add_argument(
 )    
 
 parser.add_argument('--TrainLabel_MNIST', type=int, default=None) ####### modified
-parser.add_argument('--TrainLabel_CIFAR10', type=int, default=None) ####### modified
 
 parser.add_argument('--dataroot', type=str, default='data')
 parser.add_argument('--imagesize', type=int, default=32)
@@ -404,55 +403,6 @@ elif args.data == 'imagenet64':
             add_noise,
         ])), batch_size=args.val_batchsize, shuffle=False, num_workers=args.nworkers
     )
-
-####### modified
-if args.data == 'cifar10':
-    im_dim = 3
-    n_classes = 10
-    if args.task in ['classification', 'hybrid']:
-
-        # Classification-specific preprocessing.
-        transform_train = transforms.Compose([
-            transforms.Resize(args.imagesize),
-            transforms.RandomCrop(32, padding=4, padding_mode=args.rcrop_pad_mode),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            add_noise,
-        ])
-
-        transform_test = transforms.Compose([
-            transforms.Resize(args.imagesize),
-            transforms.ToTensor(),
-            add_noise,
-        ])
-
-        # Remove the logit transform.
-        init_layer = layers.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-    else:
-        transform_train = transforms.Compose([
-            transforms.Resize(args.imagesize),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            add_noise,
-        ])
-        transform_test = transforms.Compose([
-            transforms.Resize(args.imagesize),
-            transforms.ToTensor(),
-            add_noise,
-        ])
-        init_layer = layers.LogitTransform(0.05)
-    train_loader = torch.utils.data.DataLoader(
-        datasets.CIFAR10(args.dataroot, train=True, transform=transform_train),
-        batch_size=args.batchsize,
-        shuffle=True,
-        num_workers=args.nworkers,
-    )
-    test_loader = torch.utils.data.DataLoader(
-        datasets.CIFAR10(args.dataroot, train=False, transform=transform_test),
-        batch_size=args.val_batchsize,
-        shuffle=False,
-        num_workers=args.nworkers,
-    )
     
 if args.eval_model:
     import numpy as np
@@ -511,9 +461,9 @@ if args.eval_model:
 
         test_dataset = CutomDataset(x_data, y_data, transform=transform_test)
         test_loader = torch.utils.data.DataLoader(test_dataset,
-                                                      batch_size=args.val_batchsize, 
-                                                      shuffle=False, 
-                                                      num_workers=args.nworkers)
+                                                  batch_size=args.val_batchsize, 
+                                                  shuffle=False, 
+                                                  num_workers=args.nworkers)
     elif args.eval_data=='mnist':
         test_dataset = datasets.MNIST(
                         args.dataroot, train=False, transform=transforms.Compose([
