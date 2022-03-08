@@ -251,13 +251,13 @@ if args.data == 'cifar10':
         ])
         init_layer = layers.LogitTransform(0.05)
     train_loader = torch.utils.data.DataLoader(
-        datasets.CIFAR10(args.dataroot, train=True, transform=transform_train),
+        datasets.CIFAR10(args.dataroot, train=True, transform=transform_train, Label=args.TrainLabel_CIFAR10),
         batch_size=args.batchsize,
         shuffle=True,
         num_workers=args.nworkers,
     )
     test_loader = torch.utils.data.DataLoader(
-        datasets.CIFAR10(args.dataroot, train=False, transform=transform_test),
+        datasets.CIFAR10(args.dataroot, train=False, transform=transform_test, Label=args.TrainLabel_CIFAR10),
         batch_size=args.val_batchsize,
         shuffle=False,
         num_workers=args.nworkers,
