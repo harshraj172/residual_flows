@@ -36,6 +36,7 @@ parser.add_argument(
 )    
 
 parser.add_argument('--TrainLabel_MNIST', type=int, default=None) ####### modified
+parser.add_argument('--TrainLabel_CIFAR10', type=int, default=None) ####### modified
 
 parser.add_argument('--dataroot', type=str, default='data')
 parser.add_argument('--imagesize', type=int, default=32)
