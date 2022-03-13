@@ -932,6 +932,7 @@ def main():
             test_bpd, BPDs_list = validate(args.begin_epoch - 1, model, ema)
         else:
             test_bpd, BPDs_list = validate(args.begin_epoch - 1, model)
+        print(BPDs_list)
         return test_bpd, BPDs_list if args.do_hierarch else test_bpd
         
    
