@@ -824,6 +824,7 @@ def validate(epoch, model, ema=None):
             x = x.to(device)
             bpd, logits, _, _, BPDs = compute_loss(x, model, do_hierarch=args.do_hierarch)
             bpd_meter.update(bpd.item(), x.size(0))
+            print(BPDs)
             BPDs_list.append(BPDs)
 
             if args.task in ['classification', 'hybrid']:
