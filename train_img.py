@@ -104,6 +104,7 @@ parser.add_argument('--eval_model', type=bool, default=False) ####### modified
 parser.add_argument('--eval_data', type=str, choices=['mnist', 'cifar-c'], default=None) ####### modified
 parser.add_argument('--eval_data_label', type=int, default=None) ####### modified 
 parser.add_argument('--save_cifarc_tar', type=str, default=None) 
+parser.add_argument('--res_eval_idx', type=int, default=None)
 
 parser.add_argument('--nworkers', type=int, default=4)
 parser.add_argument('--print-freq', help='Print progress every so iterations', type=int, default=20)
@@ -460,6 +461,8 @@ if args.eval_model:
         y_data = np.load(f"{args.save_cifarc_tar.split('.')[0]}/labels.npy")
 
         test_dataset = CutomDataset(x_data, y_data, transform=transform_test)
+        if args.res_eval_idx is not None:
+            test_dataset = torch.utils.data.Subset(test_dataset, range(args.res_eval_idx, len(test_dataset)))
         test_loader = torch.utils.data.DataLoader(test_dataset,
                                                   batch_size=args.val_batchsize, 
                                                   shuffle=False, 
