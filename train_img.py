@@ -104,7 +104,7 @@ parser.add_argument('--eval_model', type=bool, default=False) ####### modified
 parser.add_argument('--eval_data', type=str, choices=['mnist', 'cifar-c'], default=None) ####### modified
 parser.add_argument('--eval_data_label', type=int, default=None) ####### modified 
 parser.add_argument('--save_cifarc_tar', type=str, default=None) 
-parser.add_argument('--res_eval_idx', type=int, default=None)
+parser.add_argument('--save_results', type=str, default=None) 
 
 parser.add_argument('--nworkers', type=int, default=4)
 parser.add_argument('--print-freq', help='Print progress every so iterations', type=int, default=20)
@@ -646,6 +646,15 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
                 BPDs.append(float(bits_per_dim))
         BPDs.reverse()
         
+        tmp_results_df = pd.DataFrame(columns=['Train Data', 'Eval Data', 'bpd block1', 'bpd block2', 'bpd block3'])
+        tmp_results_df['Train Data'] = 'CIFAR-10'
+        tmp_results_df['Eval Data'] = 'CIFAR-C'
+        tmp_results_df['bpd block1'] = BPDs[0]
+        tmp_results_df['bpd block2'] = BPDs[1]
+        tmp_results_df['bpd block3'] = BPDs[2]
+        results_df = pd.concat([results_df, tmp_results_df], axis=0)
+        results_df.to_csv(args.save_results)
+        
         # log p(x)
         logpx = logpz - beta * delta_logp - np.log(nvals) * (
             args.imagesize * args.imagesize * (im_dim + args.padding)
@@ -986,4 +995,9 @@ def main():
 
 
 if __name__ == '__main__':
+    if args.eval_model:
+        if os.path.exists(args.save_results):
+            results_df = pd.read_csv(args.save_results)
+        else:
+            results_df = pd.DataFrame(columns=['Train Data', 'Eval Data', 'bpd block1', 'bpd block2', 'bpd block3'])
     main()
