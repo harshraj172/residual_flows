@@ -469,7 +469,7 @@ if args.eval_model:
                         transforms.ToTensor(),
                         add_noise,
                     ]),
-                    Label=args.eval_data_label 
+                    label=args.eval_data_label 
                 ) 
         test_loader = torch.utils.data.DataLoader(
             test_dataset,
@@ -626,7 +626,7 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
     elif args.task == 'classification':
         z, logits_tensor = model(x.view(-1, *input_size[1:]), classify=True)
     
-    BPDs = []
+    bpd_per_block = []
     if args.task in ['density', 'hybrid']:
         # log p(z)
         logpz = standard_normal_logprob(z).view(z.size(0), -1).sum(1, keepdim=True)
@@ -638,15 +638,15 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
                     args.imagesize * args.imagesize * (im_dim + args.padding)
                 ) - logpu
                 bits_per_dim = -torch.mean(logpx) / (args.imagesize * args.imagesize * im_dim) / np.log(2)
-                BPDs.append(float(bits_per_dim))
-        BPDs.reverse()
+                bpd_per_block.append(float(bits_per_dim))
+        bpd_per_block.reverse()
         
         tmp_results_df = pd.DataFrame(columns=['Train Data', 'Eval Data', 'bpd block1', 'bpd block2', 'bpd block3'])
         tmp_results_df['Train Data'] = 'CIFAR-10'
         tmp_results_df['Eval Data'] = 'CIFAR-C'
-        tmp_results_df['bpd block1'] = BPDs[0]
-        tmp_results_df['bpd block2'] = BPDs[1]
-        tmp_results_df['bpd block3'] = BPDs[2]
+        tmp_results_df['bpd block1'] = bpd_per_block[0]
+        tmp_results_df['bpd block2'] = bpd_per_block[1]
+        tmp_results_df['bpd block3'] = bpd_per_block[2]
         results_df = pd.concat([results_df, tmp_results_df], axis=0)
         results_df.to_csv(args.save_results)
         
@@ -659,7 +659,7 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
         logpz = torch.mean(logpz).detach()
         delta_logp = torch.mean(-delta_logp).detach()
     
-    return bits_per_dim, logits_tensor, logpz, delta_logp, BPDs
+    return bits_per_dim, logits_tensor, logpz, delta_logp, bpd_per_block
 
 
 def estimator_moments(model, baseline=0):
@@ -710,7 +710,7 @@ def train(epoch, model):
 
         global_itr = epoch * len(train_loader) + i
         update_lr(optimizer, global_itr)
-        BPDs_list = []
+        bpd_list = []
         # Training procedure:
         # for each sample x:
         #   compute z = f(x)
@@ -719,9 +719,9 @@ def train(epoch, model):
         x = x.to(device)
 
         beta = beta = min(1, global_itr / args.annealing_iters) if args.annealing_iters > 0 else 1.
-        bpd, logits, logpz, neg_delta_logp, BPDs = compute_loss(x, model, do_hierarch=args.do_hierarch, beta=beta)
+        bpd, logits, logpz, neg_delta_logp, bpd_per_block = compute_loss(x, model, do_hierarch=args.do_hierarch, beta=beta)
         
-        BPDs_list.append(BPDs)
+        bpd_list.append(bpd_per_block)
         
         if args.task in ['density', 'hybrid']:
             firmom, secmom = estimator_moments(model)
@@ -937,11 +937,10 @@ def main():
             if i % args.vis_freq == 0:
                 visualize(args.begin_epoch - 1, model, i, x)
         if args.ema_val:
-            test_bpd, BPDs_list = validate(args.begin_epoch - 1, model, ema)
+            test_bpd, bpd_list = validate(args.begin_epoch - 1, model, ema)
         else:
-            test_bpd, BPDs_list = validate(args.begin_epoch - 1, model)
-        print(BPDs_list)
-        return test_bpd, BPDs_list if args.do_hierarch else test_bpd
+            test_bpd, bpd_list = validate(args.begin_epoch - 1, model)
+        return test_bpd, bpd_list if args.do_hierarch else test_bpd
         
    
     global best_test_bpd
