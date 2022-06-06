@@ -35,7 +35,7 @@ parser.add_argument(
     ]
 )    
 
-parser.add_argument('--TrainLabel_MNIST', type=int, default=None) ####### modified
+parser.add_argument('--mnist_train_label', type=int, default=None) ####### modified
 
 parser.add_argument('--dataroot', type=str, default='data')
 parser.add_argument('--imagesize', type=int, default=32)
@@ -266,33 +266,28 @@ elif args.data == 'mnist':
     im_dim = 1
     init_layer = layers.LogitTransform(1e-6)
     n_classes = 10
-
-    train_dataset = datasets.MNIST(
-                    args.dataroot, train=True, transform=transforms.Compose([
-                    transforms.Resize(args.imagesize),
-                    transforms.ToTensor(),
-                    add_noise,
-                ]),
-                Label=args.TrainLabel_MNIST
-            ) ####### modified
-    
-    test_dataset = datasets.MNIST(
-                args.dataroot, train=False, transform=transforms.Compose([
-                    transforms.Resize(args.imagesize),
-                    transforms.ToTensor(),
-                    add_noise,
-                ]),
-                Label=args.TrainLabel_MNIST  
-            ) ####### modified
-        
     train_loader = torch.utils.data.DataLoader(
-        train_dataset,
+        datasets.MNIST(
+            args.dataroot, train=True, transform=transforms.Compose([
+                transforms.Resize(args.imagesize),
+                transforms.ToTensor(),
+                add_noise,
+            ]),
+            label=args.train_label_mnist
+        ),
         batch_size=args.batchsize,
         shuffle=True,
         num_workers=args.nworkers,
     )
     test_loader = torch.utils.data.DataLoader(
-        test_dataset,
+        datasets.MNIST(
+            args.dataroot, train=False, transform=transforms.Compose([
+                transforms.Resize(args.imagesize),
+                transforms.ToTensor(),
+                add_noise,
+            ]),
+            label=args.train_label_mnist
+        ),
         batch_size=args.val_batchsize,
         shuffle=False,
         num_workers=args.nworkers,
