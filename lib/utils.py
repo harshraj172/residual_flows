@@ -1,10 +1,20 @@
 import os
 import math
+import urllib
+import tarfile
 from numbers import Number
 import logging
 import torch
 
-
+def download_from_url(url, save_path):
+    if not os.path.isdir(save_path.split('.')[0]):
+        urllib.request.urlretrieve(url, save_path)
+        file = tarfile.open(save_path)
+        file.extractall()
+        file.close()
+    else:
+        print('Data already downloaded')
+    
 def makedirs(dirname):
     if not os.path.exists(dirname):
         os.makedirs(dirname)
