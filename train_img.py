@@ -29,7 +29,7 @@ parser.add_argument(
     '--data', type=str, default='cifar10', choices=[
         'mnist',
         'cifar10',
-        'cifar-c',
+        'cifar-10-C',
         'svhn',
         'celebahq',
         'celeba_5bit',
@@ -106,7 +106,6 @@ parser.add_argument('--begin-epoch', type=int, default=0)
 parser.add_argument('--eval_model', type=bool, default=False) ####### modified
 parser.add_argument('--eval_data_label', type=int, default=None) ####### modified 
 parser.add_argument('--save_cifarc_tar', type=str, default='CIFAR-10-C.tar') 
-parser.add_argument('--save_results', type=str, default=None) 
 
 parser.add_argument('--nworkers', type=int, default=4)
 parser.add_argument('--print-freq', help='Print progress every so iterations', type=int, default=20)
@@ -779,6 +778,7 @@ def validate(epoch, model, ema=None):
     bpd_meter = utils.AverageMeter()
     ce_meter = utils.AverageMeter()
     BPDs_list = [[] for _ in range(len(args.nblocks.split('-')))]
+    BPDs_corr_list = [[] for _ in range(len(args.nblocks.split('-')))]
     
     if ema is not None:
         ema.swap()
@@ -788,6 +788,7 @@ def validate(epoch, model, ema=None):
     model = parallelize(model)
     model.eval()
     
+    corrupt = transforms.GaussianBlur(kernel_size=(7, 13), sigma=(9, 11))
 
     correct = 0
     total = 0
@@ -796,10 +797,14 @@ def validate(epoch, model, ema=None):
     with torch.no_grad():
         for i, (x, y) in enumerate(tqdm(test_loader)):
             x = x.to(device)
+            x_corr = corrupt(x)
             bpd, logits, _, _, BPDs = compute_loss(x, model, do_hierarch=args.do_hierarch)
+            bpd_corr, logits_corr, _, _, BPDs_corr = compute_loss(x_corr, model, do_hierarch=args.do_hierarch)
             bpd_meter.update(bpd.item(), x.size(0))
             for j in range(len(BPDs)):
                 BPDs_list[j].append(BPDs[j])
+            for j in range(len(BPDs_corr)):
+                BPDs_corr_list[j].append(BPDs_corr[j])
 
             if args.task in ['classification', 'hybrid']:
                 y = y.to(device)
@@ -905,13 +910,15 @@ def main():
             if i % args.vis_freq == 0:
                 visualize(args.begin_epoch - 1, model, i, x)
         if args.ema_val:
-            test_bpd, BPDs_list = validate(args.begin_epoch - 1, model, ema)
+            test_bpd, BPDs_list, BPDs_corr_list = validate(args.begin_epoch - 1, model, ema)
         else:
-            test_bpd, BPDs_list = validate(args.begin_epoch - 1, model)
+            test_bpd, BPDs_list, BPDs_corr_list = validate(args.begin_epoch - 1, model)
         
         col = [f'block_{j}' for j in range(len(BPDs_list))]
         result = pd.DataFrame(BPDs_list, columns=col)
+        result_corr = pd.DataFrame(BPDs_corr_list, columns=col)
         result.to_csv(f'{args.save}/result-{args.data}.csv', index=False)
+        result.to_csv(f'{args.save}/result-corr-{args.data}.csv', index=False)
         return test_bpd, BPDs_list if args.do_hierarch else test_bpd
         
    
