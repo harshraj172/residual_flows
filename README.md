@@ -86,3 +86,7 @@ Each checkpoint contains two sets of parameters, one from training and one conta
   year={2019}
 }
 ```
+## Evaluate CIFAR-10 on CIFAR-10-C
+```
+python residual_flows/train_img.py --data cifar10 --eval_model True --imagesize 32 --actnorm True --wd 0  --resume residual_flows/models/cifar10_resflow_16-16-16.pth --val-batchsize 1 --block resblock --do_hierarch True
+```
