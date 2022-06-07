@@ -1,6 +1,24 @@
+import numpy as np
+from PIL import Image
+from torch.utils.data import Dataset
 import torch
 import torchvision.datasets as vdsets
 
+class CustomDataset(Dataset):
+    def __init__(self, x_data, y_data, transform=None):
+        self.x_data = x_data
+        self.y_data = y_data
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.y_data)
+
+    def __getitem__(self, index):
+        image = Image.fromarray(np.uint8(self.x_data[index])).convert('RGB')
+        label = self.y_data[index]
+        if self.transform:
+            image = self.transform(image)
+        return (image, label)
 
 class Dataset(object):
 
