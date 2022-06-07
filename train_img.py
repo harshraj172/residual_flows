@@ -7,8 +7,10 @@ import os.path
 import numpy as np
 from tqdm import tqdm
 import gc
+import tarfile
 
-import torch
+import torch, torchvision
+from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
 import torchvision.datasets as vdsets
@@ -27,6 +29,7 @@ parser.add_argument(
     '--data', type=str, default='cifar10', choices=[
         'mnist',
         'cifar10',
+        'cifar-c',
         'svhn',
         'celebahq',
         'celeba_5bit',
@@ -101,9 +104,8 @@ parser.add_argument('--resume', type=str, default=None)
 parser.add_argument('--begin-epoch', type=int, default=0)
     
 parser.add_argument('--eval_model', type=bool, default=False) ####### modified
-parser.add_argument('--eval_data', type=str, choices=['mnist', 'cifar-c'], default=None) ####### modified
 parser.add_argument('--eval_data_label', type=int, default=None) ####### modified 
-parser.add_argument('--save_cifarc_tar', type=str, default=None) 
+parser.add_argument('--save_cifarc_tar', type=str, default='CIFAR-10-C.tar') 
 parser.add_argument('--save_results', type=str, default=None) 
 
 parser.add_argument('--nworkers', type=int, default=4)
@@ -262,6 +264,62 @@ if args.data == 'cifar10':
         shuffle=False,
         num_workers=args.nworkers,
     )
+elif args.data == 'cifar-c':
+    im_dim = 3
+    n_classes = 10
+    if args.task in ['classification', 'hybrid']:
+
+        # Classification-specific preprocessing.
+        transform_train = transforms.Compose([
+            transforms.Resize(args.imagesize),
+            transforms.RandomCrop(32, padding=4, padding_mode=args.rcrop_pad_mode),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            add_noise,
+        ])
+
+        transform_test = transforms.Compose([
+            transforms.Resize(args.imagesize),
+            transforms.ToTensor(),
+            add_noise,
+        ])
+
+        # Remove the logit transform.
+        init_layer = layers.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    else:
+        transform_train = transforms.Compose([
+            transforms.Resize(args.imagesize),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            add_noise,
+        ])
+        transform_test = transforms.Compose([
+            transforms.Resize(args.imagesize),
+            transforms.ToTensor(),
+            add_noise,
+        ])
+        init_layer = layers.LogitTransform(0.05)
+        
+    utils.download_from_url(url="https://zenodo.org/api/files/a35f793a-6997-4603-a92f-926a6bc0fa60/CIFAR-10-C.tar",\
+                     save_path=args.save_cifarc_tar)
+    
+    x_data = np.load(f"{args.save_cifarc_tar.split('.')[0]}/gaussian_blur.npy") 
+    y_data = np.load(f"{args.save_cifarc_tar.split('.')[0]}/labels.npy")
+    train_data = (x_data[:int(0.8 * len(x_data))], y_data[:int(0.8 * len(y_data))])
+    test_data = (x_data[int(0.8 * len(x_data)):], y_data[int(0.8 * len(y_data)):])
+
+    train_loader = torch.utils.data.DataLoader(
+        datasets.CustomDataset(train_data[0], train_data[1], transform=transform_train),
+        batch_size=args.batchsize,
+        shuffle=True,
+        num_workers=args.nworkers,
+    )
+    test_loader = torch.utils.data.DataLoader(
+        datasets.CustomDataset(test_data[0], test_data[1], transform=transform_test),
+        batch_size=args.val_batchsize,
+        shuffle=False,
+        num_workers=args.nworkers,
+    )
 elif args.data == 'mnist':
     im_dim = 1
     init_layer = layers.LogitTransform(1e-6)
@@ -399,85 +457,7 @@ elif args.data == 'imagenet64':
             add_noise,
         ])), batch_size=args.val_batchsize, shuffle=False, num_workers=args.nworkers
     )
-    
-if args.eval_model:
-    import numpy as np
-    import urllib.request
-    from PIL import Image
-    import tarfile
 
-    import torch, torchvision
-    from torch.utils.data import Dataset
-    from torchvision import transforms
-    
-    class CutomDataset(Dataset):
-        def __init__(self, x_data, y_data, transform=None):
-            self.x_data = x_data
-            self.y_data = y_data
-            self.transform = transform
-
-        def __len__(self):
-            return len(self.y_data)
-
-        def __getitem__(self, index):
-            image = Image.fromarray(np.uint8(self.x_data[index])).convert('RGB')
-            label = self.y_data[index]
-            if self.transform:
-                image = self.transform(image)
-            return (image, label)
-    
-    if args.eval_data == 'cifar-c':
-        im_dim = 3
-        n_classes = 10
-        if args.task in ['classification', 'hybrid']:
-            # Classification-specific preprocessing.
-            transform_test = transforms.Compose([
-                transforms.Resize(args.imagesize),
-                transforms.ToTensor(),
-                add_noise,
-            ])
-            # Remove the logit transform.
-            init_layer = layers.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-        else:
-            transform_test = transforms.Compose([
-                transforms.Resize(args.imagesize),
-                transforms.ToTensor(),
-                add_noise,
-            ])
-            init_layer = layers.LogitTransform(0.05)
-
-        print("Downloading CIFAR-C Dataset")
-        urllib.request.urlretrieve("https://zenodo.org/api/files/a35f793a-6997-4603-a92f-926a6bc0fa60/CIFAR-10-C.tar", args.save_cifarc_tar)
-        file = tarfile.open(args.save_cifarc_tar)
-        file.extractall()
-        file.close()
-    
-        x_data = np.load(f"{args.save_cifarc_tar.split('.')[0]}/gaussian_blur.npy") 
-        y_data = np.load(f"{args.save_cifarc_tar.split('.')[0]}/labels.npy")
-
-        test_dataset = CutomDataset(x_data, y_data, transform=transform_test)
-        if args.res_eval_idx is not None:
-            test_dataset = torch.utils.data.Subset(test_dataset, range(args.res_eval_idx, len(test_dataset)))
-        test_loader = torch.utils.data.DataLoader(test_dataset,
-                                                  batch_size=args.val_batchsize, 
-                                                  shuffle=False, 
-                                                  num_workers=args.nworkers)
-    elif args.eval_data=='mnist':
-        test_dataset = datasets.MNIST(
-                        args.dataroot, train=False, transform=transforms.Compose([
-                        transforms.Resize(args.imagesize),
-                        transforms.ToTensor(),
-                        add_noise,
-                    ]),
-                    label=args.eval_data_label 
-                ) 
-        test_loader = torch.utils.data.DataLoader(
-            test_dataset,
-            batch_size=args.val_batchsize,
-            shuffle=False,
-            num_workers=args.nworkers,
-        )
-####### modified
     
 if args.task in ['classification', 'hybrid']:
     try:
@@ -626,11 +606,11 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
     elif args.task == 'classification':
         z, logits_tensor = model(x.view(-1, *input_size[1:]), classify=True)
     
-    bpd_per_block = []
     if args.task in ['density', 'hybrid']:
         # log p(z)
         logpz = standard_normal_logprob(z).view(z.size(0), -1).sum(1, keepdim=True)
         
+        BPDs = []
         if do_hierarch:
             _logdetgrad_list = [torch.zeros((1, len(_logdetgrad_list[0]))).to(device)] + _logdetgrad_list
             for logdetgrad_sum in _logdetgrad_list[:-1]:
@@ -638,17 +618,7 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
                     args.imagesize * args.imagesize * (im_dim + args.padding)
                 ) - logpu
                 bits_per_dim = -torch.mean(logpx) / (args.imagesize * args.imagesize * im_dim) / np.log(2)
-                bpd_per_block.append(float(bits_per_dim))
-        bpd_per_block.reverse()
-        
-        tmp_results_df = pd.DataFrame(columns=['Train Data', 'Eval Data', 'bpd block1', 'bpd block2', 'bpd block3'])
-        tmp_results_df['Train Data'] = 'CIFAR-10'
-        tmp_results_df['Eval Data'] = 'CIFAR-C'
-        tmp_results_df['bpd block1'] = bpd_per_block[0]
-        tmp_results_df['bpd block2'] = bpd_per_block[1]
-        tmp_results_df['bpd block3'] = bpd_per_block[2]
-        results_df = pd.concat([results_df, tmp_results_df], axis=0)
-        results_df.to_csv(args.save_results)
+                BPDs.append(bits_per_dim.detach().cpu().numpy().tolist())
         
         # log p(x)
         logpx = logpz - beta * delta_logp - np.log(nvals) * (
@@ -659,7 +629,7 @@ def compute_loss(x, model, do_hierarch, beta=1.0):
         logpz = torch.mean(logpz).detach()
         delta_logp = torch.mean(-delta_logp).detach()
     
-    return bits_per_dim, logits_tensor, logpz, delta_logp, bpd_per_block
+    return bits_per_dim, logits_tensor, logpz, delta_logp, BPDs
 
 
 def estimator_moments(model, baseline=0):
@@ -710,7 +680,6 @@ def train(epoch, model):
 
         global_itr = epoch * len(train_loader) + i
         update_lr(optimizer, global_itr)
-        bpd_list = []
         # Training procedure:
         # for each sample x:
         #   compute z = f(x)
@@ -719,9 +688,7 @@ def train(epoch, model):
         x = x.to(device)
 
         beta = beta = min(1, global_itr / args.annealing_iters) if args.annealing_iters > 0 else 1.
-        bpd, logits, logpz, neg_delta_logp, bpd_per_block = compute_loss(x, model, do_hierarch=args.do_hierarch, beta=beta)
-        
-        bpd_list.append(bpd_per_block)
+        bpd, logits, logpz, neg_delta_logp, BPDs = compute_loss(x, model, do_hierarch=args.do_hierarch, beta=beta)
         
         if args.task in ['density', 'hybrid']:
             firmom, secmom = estimator_moments(model)
@@ -811,7 +778,7 @@ def validate(epoch, model, ema=None):
     """
     bpd_meter = utils.AverageMeter()
     ce_meter = utils.AverageMeter()
-    BPDs_list = []
+    BPDs_list = [[] for _ in range(len(args.nblocks.split('-')))]
     
     if ema is not None:
         ema.swap()
@@ -831,7 +798,8 @@ def validate(epoch, model, ema=None):
             x = x.to(device)
             bpd, logits, _, _, BPDs = compute_loss(x, model, do_hierarch=args.do_hierarch)
             bpd_meter.update(bpd.item(), x.size(0))
-            BPDs_list.append(BPDs)
+            for j in range(len(BPDs)):
+                BPDs_list[j].append(BPDs[j])
 
             if args.task in ['classification', 'hybrid']:
                 y = y.to(device)
@@ -882,7 +850,7 @@ def visualize(epoch, model, itr, real_imgs):
         imgs = torch.cat([_real_imgs, fake_imgs, recon_imgs], 0)
         
         if args.eval_model:
-            filename = os.path.join(args.save, 'imgs', f'{args.eval_data}Label_{args.eval_data_label}.png')
+            filename = os.path.join(args.save, 'imgs', f'{args.data}Label_{args.eval_data_label}.png')
         else:
             filename = os.path.join(args.save, 'imgs', 'e{:03d}_i{:06d}.png'.format(epoch, itr))
         save_image(imgs.cpu().float(), filename, nrow=16, padding=2)
@@ -937,10 +905,14 @@ def main():
             if i % args.vis_freq == 0:
                 visualize(args.begin_epoch - 1, model, i, x)
         if args.ema_val:
-            test_bpd, bpd_list = validate(args.begin_epoch - 1, model, ema)
+            test_bpd, BPDs_list = validate(args.begin_epoch - 1, model, ema)
         else:
-            test_bpd, bpd_list = validate(args.begin_epoch - 1, model)
-        return test_bpd, bpd_list if args.do_hierarch else test_bpd
+            test_bpd, BPDs_list = validate(args.begin_epoch - 1, model)
+        
+        col = [f'block_{j}' for j in range(len(BPDs_list))]
+        result = pd.DataFrame(BPDs_list, columns=col)
+        result.to_csv(f'{args.save}/result-{args.data}.csv', index=False)
+        return test_bpd, BPDs_list if args.do_hierarch else test_bpd
         
    
     global best_test_bpd
@@ -989,9 +961,4 @@ def main():
 
 
 if __name__ == '__main__':
-    if args.eval_model:
-        if os.path.exists(args.save_results):
-            results_df = pd.read_csv(args.save_results)
-        else:
-            results_df = pd.DataFrame(columns=['Train Data', 'Eval Data', 'bpd block1', 'bpd block2', 'bpd block3'])
     main()
