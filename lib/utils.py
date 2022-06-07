@@ -1,11 +1,20 @@
 import os
 import math
 import urllib
+import numpy as np
+import matplotlib.pyplot as plt
 import tarfile
 from numbers import Number
 import logging
 import torch
 
+def visualize_batch(img, save_path, columns=5, rows=5):
+    fig=plt.figure(figsize=(10, 10))
+    for i in range(1, columns*rows +1):
+        fig.add_subplot(rows, columns, i)
+        plt.imshow(np.transpose(img[i-1], (1, 2, 0)))
+        plt.savefig(save_path)
+                
 def download_from_url(url, save_path):
     if not os.path.isdir(save_path.split('.')[0]):
         urllib.request.urlretrieve(url, save_path)
