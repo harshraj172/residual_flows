@@ -5,9 +5,11 @@ import urllib.request
 import os
 import os.path
 import numpy as np
+import pandas as pd 
 from tqdm import tqdm
 import gc
 import tarfile
+import matplotlib.pyplot as plt
 
 import torch, torchvision
 from torch.utils.data import Dataset
@@ -777,8 +779,8 @@ def validate(epoch, model, ema=None):
     """
     bpd_meter = utils.AverageMeter()
     ce_meter = utils.AverageMeter()
-    BPDs_list = [[] for _ in range(len(args.nblocks.split('-')))]
-    BPDs_corr_list = [[] for _ in range(len(args.nblocks.split('-')))]
+    BPDs_list = []
+    BPDs_corr_list = []
     
     if ema is not None:
         ema.swap()
@@ -788,7 +790,7 @@ def validate(epoch, model, ema=None):
     model = parallelize(model)
     model.eval()
     
-    corrupt = transforms.GaussianBlur(kernel_size=(7, 13), sigma=(9, 11))
+    corrupt = transforms.GaussianBlur(kernel_size=(3, 3))
 
     correct = 0
     total = 0
@@ -798,14 +800,15 @@ def validate(epoch, model, ema=None):
         for i, (x, y) in enumerate(tqdm(test_loader)):
             x = x.to(device)
             x_corr = corrupt(x)
+            utils.visualize_batch(x.cpu().detach().numpy(), f'{args.save}/CIFAR10-original.png', columns=5, rows=5)
+            utils.visualize_batch(x_corr.cpu().detach().numpy(), f'{args.save}/CIFAR10-blurred.png', columns=5, rows=5)
+
             bpd, logits, _, _, BPDs = compute_loss(x, model, do_hierarch=args.do_hierarch)
             bpd_corr, logits_corr, _, _, BPDs_corr = compute_loss(x_corr, model, do_hierarch=args.do_hierarch)
             bpd_meter.update(bpd.item(), x.size(0))
-            for j in range(len(BPDs)):
-                BPDs_list[j].append(BPDs[j])
-            for j in range(len(BPDs_corr)):
-                BPDs_corr_list[j].append(BPDs_corr[j])
-
+            BPDs_list.append(BPDs)
+            BPDs_corr_list.append(BPDs_corr)
+                
             if args.task in ['classification', 'hybrid']:
                 y = y.to(device)
                 loss = criterion(logits, y)
@@ -813,6 +816,14 @@ def validate(epoch, model, ema=None):
                 _, predicted = logits.max(1)
                 total += y.size(0)
                 correct += predicted.eq(y).sum().item()
+
+            if (i+1) % 5 == 0: 
+                col = [f'block_{j}' for j in range(len(args.nblocks.split('-')))]
+                result = pd.DataFrame(BPDs_list, columns=col)
+                result_corr = pd.DataFrame(BPDs_corr_list, columns=col)
+                result.to_csv(f'{args.save}/result-{args.data}.csv', index=False)
+                result_corr.to_csv(f'{args.save}/result-corr-{args.data}.csv', index=False)
+                
     val_time = time.time() - start
 
     if ema is not None:
@@ -821,7 +832,7 @@ def validate(epoch, model, ema=None):
     if args.task in ['classification', 'hybrid']:
         s += ' | CE {:.4f} | Acc {:.2f}'.format(ce_meter.avg, 100 * correct / total)
     logger.info(s)
-    return bpd_meter.avg, BPDs_list
+    return bpd_meter.avg, BPDs_list, BPDs_corr_list
 
 
 def visualize(epoch, model, itr, real_imgs):
@@ -913,12 +924,13 @@ def main():
             test_bpd, BPDs_list, BPDs_corr_list = validate(args.begin_epoch - 1, model, ema)
         else:
             test_bpd, BPDs_list, BPDs_corr_list = validate(args.begin_epoch - 1, model)
-        
+                
         col = [f'block_{j}' for j in range(len(BPDs_list))]
         result = pd.DataFrame(BPDs_list, columns=col)
         result_corr = pd.DataFrame(BPDs_corr_list, columns=col)
         result.to_csv(f'{args.save}/result-{args.data}.csv', index=False)
         result.to_csv(f'{args.save}/result-corr-{args.data}.csv', index=False)
+        
         return test_bpd, BPDs_list if args.do_hierarch else test_bpd
         
    
