@@ -800,8 +800,8 @@ def validate(epoch, model, ema=None):
         for i, (x, y) in enumerate(tqdm(test_loader)):
             x = x.to(device)
             x_corr = corrupt(x)
-            utils.visualize_batch(x.cpu().detach().numpy(), f'{args.save}/CIFAR10-original.png', columns=5, rows=5)
-            utils.visualize_batch(x_corr.cpu().detach().numpy(), f'{args.save}/CIFAR10-blurred.png', columns=5, rows=5)
+#             utils.visualize_batch(x.cpu().detach().numpy(), f'{args.save}/CIFAR10-original.png', columns=5, rows=5)
+#             utils.visualize_batch(x_corr.cpu().detach().numpy(), f'{args.save}/CIFAR10-blurred.png', columns=5, rows=5)
 
             bpd, logits, _, _, BPDs = compute_loss(x, model, do_hierarch=args.do_hierarch)
             bpd_corr, logits_corr, _, _, BPDs_corr = compute_loss(x_corr, model, do_hierarch=args.do_hierarch)
