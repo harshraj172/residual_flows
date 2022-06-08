@@ -1,5 +1,5 @@
 ## Setup
-Activate environmet through yml file
+Activate environment through the yml file
 ```
 conda env create --file environment.yml
 ```
