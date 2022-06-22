@@ -790,7 +790,8 @@ def validate(epoch, model, ema=None):
     model = parallelize(model)
     model.eval()
     
-    corrupt = transforms.GaussianBlur(kernel_size=(3, 3))
+    # corrupt = transforms.GaussianBlur(kernel_size=(3, 3))
+    corrupt = transforms.adjust_brightness(brightness_factor=2)
 
     correct = 0
     total = 0
