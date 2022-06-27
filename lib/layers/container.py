@@ -8,7 +8,10 @@ class SequentialFlow(nn.Module):
     def __init__(self, layersList):
         super(SequentialFlow, self).__init__()
         self.chain = nn.ModuleList(layersList)
-
+    
+    def get_layers(self,):
+        return self.chain
+    
     def forward(self, x, logpx=None):
         if logpx is None:
             for i in range(len(self.chain)):
