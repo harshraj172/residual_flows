@@ -195,10 +195,12 @@ class ResidualFlow(nn.Module):
         if classify: class_outs = []
         for idx in range(len(self.transforms)):
             if logpx is not None:
-                x, logpx = self.transforms[idx].forward(x, logpx)
-                _logdetgrad_list.append(logpx)
+                for layer in self.transforms[idx].get_layers():
+                    x, logpx = layer(x, logpx)
+                    _logdetgrad_list.append(logpx)
             else:
-                x = self.transforms[idx].forward(x)
+                for layer in self.transforms[idx].get_layers():
+                    x = layer(x)
             if self.factor_out and (idx < len(self.transforms) - 1):
                 d = x.size(1) // 2
                 x, f = x[:, :d], x[:, d:]
