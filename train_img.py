@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import torch, torchvision
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
+import torchvision.transforms.functional as TF
 from torchvision.utils import save_image
 import torchvision.datasets as vdsets
 
@@ -780,7 +781,10 @@ def validate(epoch, model, ema=None):
     bpd_meter = utils.AverageMeter()
     ce_meter = utils.AverageMeter()
     BPDs_list = []
-    BPDs_corr_list = []
+    BPDs_bright_list, BPDs_contrast_list, BPDs_gamma_list,\
+    BPDs_hue_list, BPDs_saturation_list, BPDs_sharpness_list,\
+    BPDs_equalize_list, BPDs_gaussian_blur_list, BPDs_rgb_to_grayscale_list,\
+    BPDs_solarize_list  = [], [], [], [], [], [], [], [], [], []
     
     if ema is not None:
         ema.swap()
@@ -789,9 +793,6 @@ def validate(epoch, model, ema=None):
 
     model = parallelize(model)
     model.eval()
-    
-    # corrupt = transforms.GaussianBlur(kernel_size=(3, 3))
-    corrupt = transforms.adjust_brightness(brightness_factor=2)
 
     correct = 0
     total = 0
@@ -800,15 +801,55 @@ def validate(epoch, model, ema=None):
     with torch.no_grad():
         for i, (x, y) in enumerate(tqdm(test_loader)):
             x = x.to(device)
-            x_corr = corrupt(x)
-#             utils.visualize_batch(x.cpu().detach().numpy(), f'{args.save}/CIFAR10-original.png', columns=5, rows=5)
-#             utils.visualize_batch(x_corr.cpu().detach().numpy(), f'{args.save}/CIFAR10-blurred.png', columns=5, rows=5)
-
+            x_bright = TF.adjust_brightness(x, brightness_factor=1.5)
+            x_contrast = TF.adjust_contrast(x, contrast_factor=1.5)
+            x_gamma = TF.adjust_gamma(x, gamma=1.5)
+            x_hue = TF.adjust_hue(x, hue_factor=0.25)
+            x_saturation = TF.adjust_saturation(x, saturation_factor=0.75)
+            x_sharpness = TF.adjust_sharpness(x, sharpness_factor=1.5)
+            # x_hue = TF.affine(x, hue_factor=0.2) 
+            # x_equalize = TF.equalize(x.long())
+            x_gaussian_blur = TF.gaussian_blur(x, kernel_size=(3, 3))
+            # x_rgb_to_grayscale = TF.rgb_to_grayscale(x)  
+            x_solarize = TF.solarize(x, threshold=0.55)
+            
+            utils.visualize_batch(x.cpu().detach().numpy(), f'{args.save}/CIFAR10-original.png', columns=5, rows=5)
+            utils.visualize_batch(x_bright.cpu().detach().numpy(), f'{args.save}/CIFAR10-bright-corr-1.5.png', columns=5, rows=5)
+            utils.visualize_batch(x_contrast.cpu().detach().numpy(), f'{args.save}/CIFAR10-contrast-corr-1.5.png', columns=5, rows=5)
+            utils.visualize_batch(x_gamma.cpu().detach().numpy(), f'{args.save}/CIFAR10-gamma-corr-1.5.png', columns=5, rows=5)
+            utils.visualize_batch(x_hue.cpu().detach().numpy(), f'{args.save}/CIFAR10-hue-corr-0.25.png', columns=5, rows=5)
+            utils.visualize_batch(x_saturation.cpu().detach().numpy(), f'{args.save}/CIFAR10-saturation-corr-0.75.png', columns=5, rows=5)
+            utils.visualize_batch(x_sharpness.cpu().detach().numpy(), f'{args.save}/CIFAR10-sharpness-corr-1.5.png', columns=5, rows=5)
+            # utils.visualize_batch(x_equalize.cpu().detach().numpy(), f'{args.save}/CIFAR10-equalize-corr.png', columns=5, rows=5)
+            utils.visualize_batch(x_gaussian_blur.cpu().detach().numpy(), f'{args.save}/CIFAR10-gaussian_blur-corr-(3, 3).png', columns=5, rows=5)
+            # utils.visualize_batch(x_rgb_to_grayscale.cpu().detach().numpy(), f'{args.save}/CIFAR10-rgb_to_grayscale-corr.png', columns=5, rows=5)
+            utils.visualize_batch(x_solarize.cpu().detach().numpy(), f'{args.save}/CIFAR10-solarize-corr-55.png', columns=5, rows=5)
+            
             bpd, logits, _, _, BPDs = compute_loss(x, model, do_hierarch=args.do_hierarch)
-            bpd_corr, logits_corr, _, _, BPDs_corr = compute_loss(x_corr, model, do_hierarch=args.do_hierarch)
+            bpd_bright, logits_bright, _, _, BPDs_bright = compute_loss(x_bright, model, do_hierarch=args.do_hierarch)
+            bpd_contrast, logits_contrast, _, _, BPDs_contrast = compute_loss(x_contrast, model, do_hierarch=args.do_hierarch)
+            bpd_gamma, logits_gamma, _, _, BPDs_gamma = compute_loss(x_gamma, model, do_hierarch=args.do_hierarch)
+            bpd_hue, logits_hue, _, _, BPDs_hue = compute_loss(x_hue, model, do_hierarch=args.do_hierarch)
+            bpd_saturation, logits_saturation, _, _, BPDs_saturation = compute_loss(x_saturation, model, do_hierarch=args.do_hierarch)
+            bpd_sharpness, logits_sharpness, _, _, BPDs_sharpness = compute_loss(x_sharpness, model, do_hierarch=args.do_hierarch)
+            # bpd_equalize, logits_equalize, _, _, BPDs_equalize = compute_loss(x_equalize, model, do_hierarch=args.do_hierarch)
+            bpd_gaussian_blur, logits_gaussian_blur, _, _, BPDs_gaussian_blur = compute_loss(x_gaussian_blur, model, do_hierarch=args.do_hierarch)
+            # bpd_rgb_to_grayscale, logits_rgb_to_grayscale, _, _, BPDs_rgb_to_grayscale = compute_loss(x_rgb_to_grayscale, model, do_hierarch=args.do_hierarch)
+            bpd_solarize, logits_solarize, _, _, BPDs_solarize = compute_loss(x_solarize, model, do_hierarch=args.do_hierarch)
+            
             bpd_meter.update(bpd.item(), x.size(0))
             BPDs_list.append(BPDs)
-            BPDs_corr_list.append(BPDs_corr)
+            
+            BPDs_bright_list.append(BPDs_bright)
+            BPDs_contrast_list.append(BPDs_contrast)
+            BPDs_gamma_list.append(BPDs_gamma)
+            BPDs_hue_list.append(BPDs_hue)
+            BPDs_saturation_list.append(BPDs_saturation)
+            BPDs_sharpness_list.append(BPDs_sharpness)
+            # BPDs_equalize_list.append(BPDs_equalize)
+            BPDs_gaussian_blur_list.append(BPDs_gaussian_blur)
+            # BPDs_rgb_to_grayscale_list.append(BPDs_rgb_to_grayscale)
+            BPDs_solarize_list.append(BPDs_solarize)
                 
             if args.task in ['classification', 'hybrid']:
                 y = y.to(device)
@@ -818,12 +859,39 @@ def validate(epoch, model, ema=None):
                 total += y.size(0)
                 correct += predicted.eq(y).sum().item()
 
-            if (i+1) % 5 == 0: 
-                col = [f'block_{j}' for j in range(len(args.nblocks.split('-')))]
+            if (i+1) % 1 == 0: 
+                col = [f'layer_{j}' for j in range(len(BPDs_list[0]))]
                 result = pd.DataFrame(BPDs_list, columns=col)
-                result_corr = pd.DataFrame(BPDs_corr_list, columns=col)
+                result_bright = pd.DataFrame(BPDs_bright_list, columns=col)
+                result_contrast = pd.DataFrame(BPDs_contrast_list, columns=col)
+                result_gamma = pd.DataFrame(BPDs_gamma_list, columns=col)
+                result_hue = pd.DataFrame(BPDs_hue_list, columns=col)
+                result_saturation = pd.DataFrame(BPDs_saturation_list, columns=col)
+                result_sharpness = pd.DataFrame(BPDs_sharpness_list, columns=col)
+                # result_equalize = pd.DataFrame(BPDs_equalize_list, columns=col)
+                result_gaussian_blurr = pd.DataFrame(BPDs_gaussian_blur_list, columns=col)
+                # result_rgb_to_grayscale = pd.DataFrame(BPDs_rgb_to_grayscale_list, columns=col)
+                result_solarize = pd.DataFrame(BPDs_solarize_list, columns=col)
+                
                 result.to_csv(f'{args.save}/result-{args.data}.csv', index=False)
-                result_corr.to_csv(f'{args.save}/result-corr-{args.data}.csv', index=False)
+                result_bright.to_csv(f'{args.save}/result-bright-{args.data}.csv', index=False)
+                result_contrast.to_csv(f'{args.save}/result-contrast-{args.data}.csv', index=False)
+                result_gamma.to_csv(f'{args.save}/result-gamma-{args.data}.csv', index=False)
+                result_hue.to_csv(f'{args.save}/result-hue-{args.data}.csv', index=False)
+                result_saturation.to_csv(f'{args.save}/result-saturation-{args.data}.csv', index=False)
+                result_sharpness.to_csv(f'{args.save}/result-sharpness-{args.data}.csv', index=False)
+                # result_equalize.to_csv(f'{args.save}/result-equalize-{args.data}.csv', index=False)
+                result_gaussian_blurr.to_csv(f'{args.save}/result-gaussian_blur-{args.data}.csv', index=False)
+                # result_rgb_to_grayscale.to_csv(f'{args.save}/result-rgb_to_grayscale-{args.data}.csv', index=False)
+                result_solarize.to_csv(f'{args.save}/result-solarize-{args.data}.csv', index=False)
+                
+                # plot line graph
+                X = list(range(len(BPDs_bright_list[0])))
+                Ys = [['original', 'bright', 'contrast', 'gamma', 'hue', 'saturation', 'sharpness', 'gaussian_blurr', 'solarize'],\
+                      [BPDs_list[0], BPDs_bright_list[0], BPDs_contrast_list[0], BPDs_gamma_list[0],\
+                       BPDs_hue_list[0], BPDs_saturation_list[0], BPDs_sharpness_list[0], BPDs_gaussian_blur_list[0],\
+                       BPDs_solarize_list[0]]]
+                utils.get_line_graph(X, Ys, f'{args.save}/comparison-line-graph.png')
                 
     val_time = time.time() - start
 
