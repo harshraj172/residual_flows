@@ -8,6 +8,15 @@ from numbers import Number
 import logging
 import torch
 
+def get_line_graph(X, Ys, save_path):
+    fig=plt.figure(figsize=(10, 7))
+    for (label, Y) in zip(Ys[0], Ys[1]):
+        plt.plot(X, Y, label = label)
+        plt.xlabel("Layers")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.savefig(save_path)
+        
 def visualize_batch(img, save_path, columns=5, rows=5):
     fig=plt.figure(figsize=(10, 10))
     for i in range(1, columns*rows +1):
