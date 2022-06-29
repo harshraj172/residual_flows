@@ -240,7 +240,7 @@ def basic_logdet_estimator(g, x, n_power_series, vareps, coeff_fn, training):
     logdetgrad = torch.tensor(0.).to(x)
     for k in range(1, n_power_series + 1):
         vjp = torch.autograd.grad(g, x, vjp, create_graph=training, retain_graph=True)[0]
-        tr = torch.sum(vjp.view(x.shape[0], -1) * vareps.view(x.shape[0], -1), 1)
+        tr = torch.sum(vjp.contiguous().view(x.shape[0], -1) * vareps.contiguous().view(x.shape[0], -1), 1)
         delta = (-1)**(k + 1) / k * coeff_fn(k) * tr
         logdetgrad = logdetgrad + delta
     return logdetgrad
